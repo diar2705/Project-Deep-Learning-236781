@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import project.autoencoder as ae
-from project.train import train_epoch, validate, test_autoencoder
+from project.train import Trainer
 from tqdm import tqdm
 
 NUM_CLASSES = 10
@@ -67,26 +67,27 @@ if __name__ == "__main__":
     
     model = ae.Autoencoder(args.latent_dim).to(device)
     criterion = nn.MSELoss()
-    
     optimizer = optim.Adam(model.parameters(), lr=0.001)
-    
+    trainer = Trainer(model, train_loader, val_loader, test_loader, criterion, optimizer, device=device)
+
     num_epochs = 2
     train_losses = []
-    val_losses  = []
+    val_losses = []
     for epoch in range(num_epochs):
-        train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss = validate(model, val_loader, criterion, device)
+        train_loss = trainer.train_epoch()
+        val_loss = trainer.validate()
         train_losses.append(train_loss)
         val_losses.append(val_loss)
         tqdm.write(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
-        
+
     plt.plot(train_losses, label='Train Loss')
     plt.plot(val_losses, label='Val Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
     plt.show()
-    test_loss = test_autoencoder(model, test_loader, criterion, device)
+
+    test_loss = trainer.test()
 
     # Save the model
     torch.save(model.encoder.state_dict(), 'encoder.pth')
