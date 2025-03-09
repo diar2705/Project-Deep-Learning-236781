@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import project.autoencoder as ae
-from project.train import train_epoch, validate, test_autoencoder
+from project.train import train_autoencoder, validate_autoencoder, test_autoencoder,test_classifier,train_classifier,validate_classifier
 from tqdm import tqdm
 
 NUM_CLASSES = 10
@@ -32,6 +32,78 @@ def get_args():
     parser.add_argument('--self-supervised', action='store_true', default=False,
                         help='Whether train self-supervised with reconstruction objective, or jointly with classifier for classification objective.')
     return parser.parse_args()
+    
+
+
+def part1_self_supervised_autoencoder(train_loader,val_loader,test_loader,device,latent_dim=128):
+    model = ae.Autoencoder(latent_dim).to(device)
+    criterion = nn.MSELoss()
+    
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    
+    num_epochs = 20
+    train_losses = []
+    val_losses  = []
+    for epoch in range(num_epochs):
+        train_loss = train_autoencoder(model, train_loader, criterion, optimizer, device)
+        val_loss = validate_autoencoder(model, val_loader, criterion, device)
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        tqdm.write(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
+        
+    test_loss = test_autoencoder(model, test_loader, criterion, device)
+    print(f'Test Loss: {test_loss:.4f}')
+    
+    # Save the model
+    torch.save(model.encoder.state_dict(), 'encoder.pth')
+    
+def part1_classifier(train_loader,val_loader,test_loader,device,latent_dim=128):
+    encoder = ae.Encoder()
+    encoder.load_state_dict(torch.load('encoder.pth'))
+    
+    for param in encoder.parameters():
+        param.requires_grad = False
+    
+    classifier = ae.Classifier(num_classes=10)
+
+    # Combine encoder and classifier
+    model = nn.Sequential(encoder, classifier).to(device)
+
+    # Define loss function and optimizer
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(classifier.parameters(), lr=0.001)
+    
+    # Training loop
+    num_epochs = 20
+    train_losses = []
+    train_accuracies = []
+    val_losses = []
+    val_accuracies = []
+    
+    for epoch in range(num_epochs):
+        train_loss, train_acc = train_classifier(model, train_loader, optimizer, criterion, device)
+        val_loss, val_acc = validate_classifier(model, val_loader, criterion, device)
+        
+        train_losses.append(train_loss)
+        train_accuracies.append(train_acc)
+        val_losses.append(val_loss)
+        val_accuracies.append(val_acc)
+        
+        tqdm.write(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+    
+    # Test the model
+    test_loss, test_acc = test_classifier(model, test_loader, criterion, device)
+    print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%')
+    
+    # Save the model
+    torch.save(model.state_dict(), 'classifier_model.pth')
+    
+    return model, test_acc
+    
+    
+    
+    
+
     
 
 if __name__ == "__main__":
@@ -65,28 +137,12 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
     
-    model = ae.Autoencoder(args.latent_dim).to(device)
-    criterion = nn.MSELoss()
+    part1_self_supervised_autoencoder(train_loader,val_loader,test_loader,device)
+    part1_classifier(train_loader,val_loader,test_loader,device)
     
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    
-    num_epochs = 2
-    train_losses = []
-    val_losses  = []
-    for epoch in range(num_epochs):
-        train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss = validate(model, val_loader, criterion, device)
-        train_losses.append(train_loss)
-        val_losses.append(val_loss)
-        tqdm.write(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
-        
-    plt.plot(train_losses, label='Train Loss')
-    plt.plot(val_losses, label='Val Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.show()
-    test_loss = test_autoencoder(model, test_loader, criterion, device)
 
-    # Save the model
-    torch.save(model.encoder.state_dict(), 'encoder.pth')
+    
+    
+    
+    
+    

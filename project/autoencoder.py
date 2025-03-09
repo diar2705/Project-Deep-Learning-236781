@@ -65,12 +65,15 @@ class Classifier(nn.Module):
     def __init__(self, num_classes=10):
         super(Classifier, self).__init__()
         self.classifier = nn.Sequential(
-            nn.Linear(64 * 7 * 7, 120),
-            nn.Tanh(),
-            nn.Linear(120, 84),
+            nn.Linear(128, 84),
             nn.Tanh(),
             nn.Linear(84, num_classes),
         )
 
     def forward(self, x):
-        return self.classifier(x)
+        logits = self.classifier(x)
+        probas = nn.functional.softmax(logits, dim=1)
+        return logits, probas
+    
+
+
