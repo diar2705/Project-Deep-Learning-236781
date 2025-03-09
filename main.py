@@ -6,6 +6,13 @@ from utils import plot_tsne
 import numpy as np
 import random
 import argparse
+from torch.utils.data import DataLoader, random_split
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import project.autoencoder as ae
+from project.train import train_epoch, validate, test_autoencoder
+from tqdm import tqdm
 
 NUM_CLASSES = 10
 
@@ -32,12 +39,16 @@ if __name__ == "__main__":
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])  #one possible convenient normalization. You don't have to use it.
     ])
-
     args = get_args()
     freeze_seeds(args.seed)
-                
+    device = torch.device(args.device)
+    print("Using device:", device)
                                            
     if args.mnist:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.1307], std=[0.3081])  # MNIST-specific normalization
+        ])
         train_dataset = datasets.MNIST(root=args.data_path, train=True, download=False, transform=transform)
         test_dataset = datasets.MNIST(root=args.data_path, train=False, download=False, transform=transform)
     else:
@@ -45,12 +56,37 @@ if __name__ == "__main__":
         test_dataset = datasets.CIFAR10(root=args.data_path, train=False, download=True, transform=transform)
         
     # When you create your dataloader you should split train_dataset or test_dataset to leave some aside for validation
+    val_size = int(0.1 * len(train_dataset))  # 10% for validation
+    train_size = len(train_dataset) - val_size
+    train_subset, val_subset = random_split(train_dataset, [train_size, val_size])
+    
+    train_loader = DataLoader(train_subset, batch_size=args.batch_size, shuffle=True)
+    val_loader = DataLoader(val_subset, batch_size=args.batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+    
+    
+    model = ae.Autoencoder(args.latent_dim).to(device)
+    criterion = nn.MSELoss()
+    
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    
+    num_epochs = 2
+    train_losses = []
+    val_losses  = []
+    for epoch in range(num_epochs):
+        train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
+        val_loss = validate(model, val_loader, criterion, device)
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        tqdm.write(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
+        
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(val_losses, label='Val Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.show()
+    test_loss = test_autoencoder(model, test_loader, criterion, device)
 
-    #this is just for the example. Simple flattening of the image is probably not the best idea                                        
-    encoder_model = torch.nn.Linear(32*32*3,args.latent_dim).to(args.device)
-    decoder_model = torch.nn.Linear(args.latent_dim,32*32*3 if args.self_supervised else NUM_CLASSES).to(args.device) 
-
-    sample = train_dataset[0][0][None].to(args.device) #This is just for the example - you should use a dataloader
-    output = decoder_model(encoder_model(sample.flatten()))
-    print(output.shape)
-
+    # Save the model
+    torch.save(model.encoder.state_dict(), 'encoder.pth')

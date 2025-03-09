@@ -1,0 +1,6 @@
+__pychace
+__pycache__/
+*.pyc
+.vscode/
+
+reconstructed_images
