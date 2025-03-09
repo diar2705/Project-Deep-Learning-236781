@@ -41,7 +41,7 @@ def part1_self_supervised_autoencoder(train_loader,val_loader,test_loader,device
     
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
-    num_epochs = 20
+    num_epochs = 2
     train_losses = []
     val_losses  = []
     for epoch in range(num_epochs):
@@ -74,7 +74,7 @@ def part1_classifier(train_loader,val_loader,test_loader,device,latent_dim=128):
     optimizer = optim.Adam(classifier.parameters(), lr=0.001)
     
     # Training loop
-    num_epochs = 20
+    num_epochs = 2
     train_losses = []
     train_accuracies = []
     val_losses = []

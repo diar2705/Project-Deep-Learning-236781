@@ -113,7 +113,7 @@ def test_autoencoder(model, test_loader, criterion, device):
     avg_loss = total_loss / num_batches
 
     # Sort images by loss
-    images_losses.sort(key=lambda x: x[2], reverse=True)
+    images_losses.sort(key=lambda x: x[2])
 
     # Create a directory to save the images
     os.makedirs('reconstructed_images', exist_ok=True)
@@ -170,12 +170,12 @@ def train_classifier(model, train_loader, optimizer, criterion, device):
             
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            loss = criterion(outputs[1], targets)
             loss.backward()
             optimizer.step()
             
             train_loss += loss.item()
-            _, predicted = outputs.max(1)
+            _,predicted = outputs[1].max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
             
@@ -215,10 +215,10 @@ def test_classifier(model, test_loader, criterion, device):
                 inputs, targets = inputs.to(device), targets.to(device)
                 
                 outputs = model(inputs)
-                loss = criterion(outputs, targets)
+                loss = criterion(outputs[1], targets)
                 
                 test_loss += loss.item()
-                _, predicted = outputs.max(1)
+                _,predicted = outputs[1].max(1)
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
                 
@@ -260,11 +260,11 @@ def validate_classifier(model, val_loader, criterion, device):
                 labels = labels.to(device)
                 
                 outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                loss = criterion(outputs[1], labels)
                 
                 val_loss += loss.item()
                 
-                _, predicted = torch.max(outputs.data, 1)
+                _,predicted = torch.max(outputs[1], 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
                 
