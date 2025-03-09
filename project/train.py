@@ -192,7 +192,7 @@ def train_classifier(model, train_loader, optimizer, criterion, device):
 
 def test_classifier(model, test_loader, criterion, device):
     """
-    Test a classifier model.
+    Test a classifier model and save correctly and incorrectly classified images.
     
     Args:
         model: The classifier model
@@ -209,6 +209,10 @@ def test_classifier(model, test_loader, criterion, device):
     total = 0
     num_batches = len(test_loader)
     
+    # Lists to store correctly and incorrectly classified images
+    correct_examples = []
+    incorrect_examples = []
+    
     with torch.no_grad():
         with tqdm(test_loader, desc="Testing", total=num_batches, leave=True, dynamic_ncols=True, ncols=100) as pbar:
             for inputs, targets in pbar:
@@ -218,17 +222,76 @@ def test_classifier(model, test_loader, criterion, device):
                 loss = criterion(outputs[1], targets)
                 
                 test_loss += loss.item()
-                _,predicted = outputs[1].max(1)
+                _, predicted = outputs[1].max(1)
                 total += targets.size(0)
-                correct += predicted.eq(targets).sum().item()
+                current_correct = predicted.eq(targets).sum().item()
+                correct += current_correct
+                
+                # Store correctly and incorrectly classified images
+                for i in range(len(inputs)):
+                    is_correct = predicted[i] == targets[i]
+                    if is_correct and len(correct_examples) < 20:
+                        correct_examples.append((
+                            inputs[i].cpu(),
+                            targets[i].item(),
+                            predicted[i].item()
+                        ))
+                    elif not is_correct and len(incorrect_examples) < 20:
+                        incorrect_examples.append((
+                            inputs[i].cpu(),
+                            targets[i].item(),
+                            predicted[i].item()
+                        ))
+                    
+                    # Break early if we've collected enough examples
+                    if len(correct_examples) >= 20 and len(incorrect_examples) >= 20:
+                        break
                 
                 # Update progress bar with current loss and accuracy
                 current_accuracy = 100 * correct / total
                 pbar.set_postfix(loss=loss.item(), accuracy=f"{current_accuracy:.2f}%")
-                # Removed redundant pbar.update(1)
     
     accuracy = 100 * correct / total
     avg_loss = test_loss / num_batches
+    
+    # Create directories to save the images
+    os.makedirs('correctly_classified', exist_ok=True)
+    os.makedirs('incorrectly_classified', exist_ok=True)
+    
+    # Save correctly classified images
+    for i, (img, true_label, pred_label) in enumerate(correct_examples):
+        fig, ax = plt.subplots(figsize=(5, 5))
+        
+        # Handle different channel configurations
+        if img.shape[0] == 3:  # RGB image
+            ax.imshow(img.permute(1, 2, 0).numpy())
+        else:  # Grayscale image
+            ax.imshow(img[0], cmap='gray')
+            
+        ax.set_title(f'True: {true_label}, Pred: {pred_label}')
+        ax.axis('off')
+        plt.tight_layout()
+        plt.savefig(f'correctly_classified/true_{i+1}.png')
+        plt.close(fig)
+        
+    # Save incorrectly classified images
+    for i, (img, true_label, pred_label) in enumerate(incorrect_examples):
+        fig, ax = plt.subplots(figsize=(5, 5))
+        
+        # Handle different channel configurations
+        if img.shape[0] == 3:  # RGB image
+            ax.imshow(img.permute(1, 2, 0).numpy())
+        else:  # Grayscale image
+            ax.imshow(img[0], cmap='gray')
+            
+        ax.set_title(f'True: {true_label}, Pred: {pred_label}')
+        ax.axis('off')
+        plt.tight_layout()
+        plt.savefig(f'incorrectly_classified/false_{i+1}.png')
+        plt.close(fig)
+    
+    print(f"Saved {len(correct_examples)} correctly classified images.")
+    print(f"Saved {len(incorrect_examples)} incorrectly classified images.")
     
     return avg_loss, accuracy
 

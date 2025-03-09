@@ -41,7 +41,7 @@ def part1_self_supervised_autoencoder(train_loader,val_loader,test_loader,device
     
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
-    num_epochs = 2
+    num_epochs = 20
     train_losses = []
     val_losses  = []
     for epoch in range(num_epochs):
@@ -50,10 +50,11 @@ def part1_self_supervised_autoencoder(train_loader,val_loader,test_loader,device
         train_losses.append(train_loss)
         val_losses.append(val_loss)
         tqdm.write(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
+        print("\n")
         
     test_loss = test_autoencoder(model, test_loader, criterion, device)
     print(f'Test Loss: {test_loss:.4f}')
-    
+    print("\n")
     # Save the model
     torch.save(model.encoder.state_dict(), 'encoder.pth')
     
@@ -74,7 +75,7 @@ def part1_classifier(train_loader,val_loader,test_loader,device,latent_dim=128):
     optimizer = optim.Adam(classifier.parameters(), lr=0.001)
     
     # Training loop
-    num_epochs = 2
+    num_epochs = 20
     train_losses = []
     train_accuracies = []
     val_losses = []
@@ -90,10 +91,12 @@ def part1_classifier(train_loader,val_loader,test_loader,device,latent_dim=128):
         val_accuracies.append(val_acc)
         
         tqdm.write(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+        print("\n")
     
     # Test the model
     test_loss, test_acc = test_classifier(model, test_loader, criterion, device)
     print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%')
+    print("\n")
     
     # Save the model
     torch.save(model.state_dict(), 'classifier_model.pth')
