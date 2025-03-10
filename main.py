@@ -10,8 +10,8 @@ from torch.utils.data import DataLoader, random_split
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import project.autoencoder as ae
-from project.train import train_autoencoder, validate_autoencoder, test_autoencoder,test_classifier,train_classifier,validate_classifier
+import project.mnist.models as ae
+from project.mnist.trainer import AutoencoderTrainer, ClassifierTrainer
 from tqdm import tqdm
 
 NUM_CLASSES = 10
@@ -35,79 +35,26 @@ def get_args():
     
 
 
-def part1_self_supervised_autoencoder(train_loader,val_loader,test_loader,device,latent_dim=128):
+def part1_self_supervised_autoencoder(train_loader, val_loader, test_loader, device, latent_dim=128):
     model = ae.Autoencoder(latent_dim).to(device)
     criterion = nn.MSELoss()
-    
     optimizer = optim.Adam(model.parameters(), lr=0.001)
-    
-    num_epochs = 20
-    train_losses = []
-    val_losses  = []
-    for epoch in range(num_epochs):
-        train_loss = train_autoencoder(model, train_loader, criterion, optimizer, device)
-        val_loss = validate_autoencoder(model, val_loader, criterion, device)
-        train_losses.append(train_loss)
-        val_losses.append(val_loss)
-        tqdm.write(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
-        print("\n")
-        
-    test_loss = test_autoencoder(model, test_loader, criterion, device)
-    print(f'Test Loss: {test_loss:.4f}')
-    print("\n")
-    # Save the model
-    torch.save(model.encoder.state_dict(), 'encoder.pth')
-    
-def part1_classifier(train_loader,val_loader,test_loader,device,latent_dim=128):
-    encoder = ae.Encoder()
-    encoder.load_state_dict(torch.load('encoder.pth'))
-    
+    trainer = AutoencoderTrainer(model, train_loader, val_loader, test_loader, device, criterion, optimizer)
+    trainer.fit()
+    torch.save(model.encoder.state_dict(), "encoder.pth")
+
+def part1_classifier(train_loader, val_loader, test_loader, device, latent_dim=128):
+    encoder = ae.Encoder(latent_dim)
+    encoder.load_state_dict(torch.load("encoder.pth"))
     for param in encoder.parameters():
         param.requires_grad = False
-    
     classifier = ae.Classifier(num_classes=10)
-
-    # Combine encoder and classifier
     model = nn.Sequential(encoder, classifier).to(device)
-
-    # Define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(classifier.parameters(), lr=0.001)
-    
-    # Training loop
-    num_epochs = 20
-    train_losses = []
-    train_accuracies = []
-    val_losses = []
-    val_accuracies = []
-    
-    for epoch in range(num_epochs):
-        train_loss, train_acc = train_classifier(model, train_loader, optimizer, criterion, device)
-        val_loss, val_acc = validate_classifier(model, val_loader, criterion, device)
-        
-        train_losses.append(train_loss)
-        train_accuracies.append(train_acc)
-        val_losses.append(val_loss)
-        val_accuracies.append(val_acc)
-        
-        tqdm.write(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
-        print("\n")
-    
-    # Test the model
-    test_loss, test_acc = test_classifier(model, test_loader, criterion, device)
-    print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%')
-    print("\n")
-    
-    # Save the model
-    torch.save(model.state_dict(), 'classifier_model.pth')
-    
-    return model, test_acc
-    
-    
-    
-    
-
-    
+    trainer = ClassifierTrainer(model, train_loader, val_loader, test_loader, device, criterion, optimizer)
+    trainer.fit()
+    torch.save(model.state_dict(), "classifier_model.pth")
 
 if __name__ == "__main__":
     transform = transforms.Compose([
@@ -140,12 +87,6 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
     
-    part1_self_supervised_autoencoder(train_loader,val_loader,test_loader,device)
-    part1_classifier(train_loader,val_loader,test_loader,device)
-    
+    part1_self_supervised_autoencoder(train_loader, val_loader, test_loader, device, args.latent_dim)
+    part1_classifier(train_loader, val_loader, test_loader, device, args.latent_dim)
 
-    
-    
-    
-    
-    
