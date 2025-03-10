@@ -6,80 +6,108 @@ class Encoder(nn.Module):
     def __init__(self, latent_dim=128):
         super(Encoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=5, stride=1, padding=2),  # Output: (64, 32, 32)
+            # Initial Block
+            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=2),  # Output: (64, 15, 15)
-            nn.Conv2d(64, 192, kernel_size=5, padding=2),  # Output: (192, 15, 15)
-            nn.BatchNorm2d(192),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=2),  # Output: (192, 7, 7)
-            nn.Conv2d(192, 384, kernel_size=3, padding=1),  # Output: (384, 7, 7)
-            nn.BatchNorm2d(384),
-            nn.ReLU(),
-            nn.Conv2d(384, 256, kernel_size=3, padding=1),  # Output: (256, 7, 7)
+            nn.GELU(),
+            nn.MaxPool2d(2),  # 16x16
+            
+            # Block 1
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
+            nn.GELU(),
+            nn.MaxPool2d(2),  # 8x8
+            
+            # Block 2
+            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),  # Output: (256, 7, 7)
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Flatten(),  # Output: (256 * 7 * 7 = 12544)
-            nn.Linear(256 * 7 * 7, 4096),  # Output: 4096
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(4096, 1024),  # Output: 1024
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(1024, latent_dim),  # Output: latent_dim
+            nn.GELU(),
+            nn.MaxPool2d(2),  # 4x4
+            
+            # Final Block
+            nn.Flatten(),
+            nn.Linear(256 * 4 * 4, 1024),
+            nn.BatchNorm1d(1024),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            
+            nn.Linear(1024, latent_dim),
+            nn.BatchNorm1d(latent_dim),
+            nn.GELU()
         )
 
     def forward(self, x):
         return self.encoder(x)
 
-
 class Decoder(nn.Module):
     def __init__(self, latent_dim=128):
         super(Decoder, self).__init__()
-
         self.decoder = nn.Sequential(
-            nn.Linear(latent_dim, 512),  # Output: (512)
-            nn.ReLU(),
-            nn.Linear(512, 256 * 4 * 4),  # Output: (256 * 4 * 4)
-            nn.Unflatten(1, (256, 4, 4)),  # Output: (256, 4, 4)
-            nn.ConvTranspose2d(256, 256, kernel_size=3, stride=2, padding=1, output_padding=1),  # Output: (256, 8, 8)
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1),  # Output: (128, 16, 16)
+            nn.Linear(latent_dim, 256 * 4 * 4),
+            nn.Unflatten(1, (256, 4, 4)),
+            
+            # Block 1
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(256, 128, 3, padding=1),
             nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),  # Output: (64, 32, 32)
+            nn.GELU(),
+            
+            # Block 2
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(128, 64, 3, padding=1),
             nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1),  # Output: (3, 32, 32)
-            nn.Sigmoid(),
+            nn.GELU(),
+            
+            # Block 3
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(64, 32, 3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.GELU(),
+            
+            # Final output
+            nn.Conv2d(32, 3, 3, padding=1),
+            nn.Tanh()
         )
 
     def forward(self, x):
         return self.decoder(x)
 
-
 class Classifier(nn.Module):
-    def __init__(self, num_classes=10):
+    def __init__(self, latent_dim=128, num_classes=10):
         super(Classifier, self).__init__()
         self.classifier = nn.Sequential(
+            nn.Linear(latent_dim, 1024),
+            nn.BatchNorm1d(1024),
+            nn.GELU(),
             nn.Dropout(0.5),
-            nn.Linear(128, 84),  # Output: (84)
-            nn.BatchNorm1d(84),
-            nn.ReLU(),
+            
+            nn.Linear(1024, 1024),
+            nn.BatchNorm1d(1024),
+            nn.GELU(),
             nn.Dropout(0.5),
-            nn.Linear(84, num_classes),  # Output: (num_classes)
+            
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            
+            nn.Linear(512, num_classes)
         )
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')  # Approximate GELU as ReLU
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+        
 
     def forward(self, x):
         logits = self.classifier(x)
         probas = nn.functional.softmax(logits, dim=1)
         return logits, probas
-
 
 class Autoencoder(nn.Module):
     def __init__(self, latent_dim=128):
@@ -97,3 +125,4 @@ class Autoencoder(nn.Module):
 
     def decode(self, z):
         return self.decoder(z)
+    

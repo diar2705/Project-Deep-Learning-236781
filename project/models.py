@@ -18,14 +18,14 @@ def Part1(
     trainer = tr.AutoencoderTrainer(
         model, train_loader, val_loader, test_loader, device
     )
-    trainer.fit(20)
+    trainer.fit(150)
     torch.save(model.encoder.state_dict(), "encoder.pth")
     encoder.load_state_dict(torch.load("encoder.pth"))
     for param in encoder.parameters():
         param.requires_grad = False
     model = nn.Sequential(encoder, classifier).to(device)
     trainer = tr.ClassifierTrainer(model, train_loader, val_loader, test_loader, device)
-    trainer.fit(20)
+    trainer.fit(100)
     torch.save(model.state_dict(), "classifier_model.pth")
 
 

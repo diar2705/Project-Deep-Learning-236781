@@ -3,7 +3,11 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import os
 import torch.optim as optim
-
+from enum import Enum
+class Mode(Enum):
+    TRAIN = 1
+    VAL = 2
+    TEST = 3
 
 class BaseTrainer:
     def __init__(self, model, train_loader, val_loader, test_loader, device):
@@ -12,8 +16,7 @@ class BaseTrainer:
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.device = device
-        self.optimizer = optim.Adam(model.parameters(), lr=0.001)
-
+        
     def fit(self, num_epochs=1):
         for epoch in range(num_epochs):
             train_loss, train_acc = self.train()
@@ -35,8 +38,8 @@ class BaseTrainer:
     def test(self):
         raise NotImplementedError
 
-    def _run_epoch(self, loader, train_mode=True):
-        self.model.train() if train_mode else self.model.eval()
+    def _run_epoch(self, loader, mode:Mode):
+        self.model.train() if mode == Mode.TRAIN else self.model.eval()
         total_loss = 0.0
         correct = 0
         total = 0
@@ -44,7 +47,12 @@ class BaseTrainer:
 
         with tqdm(
             loader,
-            desc="Training" if train_mode else "Validating",
+            desc = (
+                "Training" if mode == Mode.TRAIN else 
+                "Validating" if mode == Mode.VAL else 
+                "Testing" if mode == Mode.TEST else 
+                "Unknown Mode"
+            ),
             total=num_batches,
             leave=True,
             dynamic_ncols=True,
@@ -53,7 +61,7 @@ class BaseTrainer:
             for inputs, targets in pbar:
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
 
-                if train_mode:
+                if mode == Mode.TRAIN:
                     self.optimizer.zero_grad()
 
                 outputs = self.model(inputs)
@@ -61,7 +69,7 @@ class BaseTrainer:
                     outputs = outputs[1]
                 loss = self.criterion(outputs, targets)
 
-                if train_mode:
+                if mode == Mode.TRAIN:
                     loss.backward()
                     self.optimizer.step()
 
@@ -80,20 +88,28 @@ class AutoencoderTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.MSELoss()
+        self.optimizer = optim.Adam(model.parameters(),lr=0.001)
 
-    def _run_epoch(self, loader, train_mode=True):
-        self.model.train() if train_mode else self.model.eval()
+
+    def _run_epoch(self, loader, mode:Mode):
+        self.model.train() if mode == Mode.TRAIN else self.model.eval()
         total_loss = 0.0
         with tqdm(
-            loader, desc="Training" if train_mode else "Validating", leave=True
-        ) as pbar:
+            loader,
+            desc = (
+                "Training" if mode == Mode.TRAIN else 
+                "Validating" if mode == Mode.VAL else 
+                "Testing" if mode == Mode.TEST else 
+                "Unknown Mode"
+            )
+            , leave=True) as pbar:
             for inputs, _ in pbar:
                 inputs = inputs.to(self.device)
-                if train_mode:
+                if mode == Mode.TRAIN:
                     self.optimizer.zero_grad()
                 outputs = self.model(inputs)
                 loss = self.criterion(outputs, inputs)
-                if train_mode:
+                if mode == Mode.TRAIN:
                     loss.backward()
                     self.optimizer.step()
                 total_loss += loss.item()
@@ -101,14 +117,14 @@ class AutoencoderTrainer(BaseTrainer):
         return total_loss / len(loader), 0.0  # Return dummy accuracy
 
     def train(self):
-        return self._run_epoch(self.train_loader, train_mode=True)
+        return self._run_epoch(self.train_loader, Mode.TRAIN)
 
     def validate(self):
-        return self._run_epoch(self.val_loader, train_mode=False)
+        return self._run_epoch(self.val_loader, Mode.VAL)
 
     def test(self):
         self.model.eval()
-        test_loss, _ = self._run_epoch(self.test_loader, train_mode=False)
+        test_loss, _ = self._run_epoch(self.test_loader, Mode.TEST)
         self._save_reconstructed_images(self.test_loader)
         return test_loss, 0.0  # Return dummy accuracy
 
@@ -146,14 +162,16 @@ class ClassifierTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.CrossEntropyLoss()
+        self.optimizer = optim.Adam(model[1].parameters(), lr=3e-4,weight_decay=0.05)
+
 
     def train(self):
-        return self._run_epoch(self.train_loader, train_mode=True)
+        return self._run_epoch(self.train_loader, Mode.TRAIN)
 
     def validate(self):
-        return self._run_epoch(self.val_loader, train_mode=False)
+        return self._run_epoch(self.val_loader, Mode.VAL)
 
     def test(self):
         self.model.eval()
-        test_loss, accuracy = self._run_epoch(self.test_loader, train_mode=False)
+        test_loss, accuracy = self._run_epoch(self.test_loader,Mode.TEST)
         return test_loss, accuracy
