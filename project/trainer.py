@@ -82,10 +82,7 @@ class AutoencoderTrainer(BaseTrainer):
         self.criterion = torch.nn.MSELoss()
 
     def _run_epoch(self, loader, train_mode=True):
-        if train_mode:
-            self.model.train()
-        else:
-            self.model.eval()
+        self.model.train() if train_mode else self.model.eval()
         total_loss = 0.0
         with tqdm(
             loader, desc="Training" if train_mode else "Validating", leave=True
@@ -111,32 +108,20 @@ class AutoencoderTrainer(BaseTrainer):
 
     def test(self):
         self.model.eval()
-        total_loss = 0.0
-        num_batches = len(self.test_loader)
+        test_loss, _ = self._run_epoch(self.test_loader, train_mode=False)
+        self._save_reconstructed_images(self.test_loader)
+        return test_loss, 0.0  # Return dummy accuracy
+
+    def _save_reconstructed_images(self, test_loader, num_images_to_show=5):
+        self.model.eval()
         images_losses = []
-
         with torch.no_grad():
-            with tqdm(
-                self.test_loader,
-                desc="Testing",
-                total=num_batches,
-                leave=True,
-                dynamic_ncols=True,
-                ncols=100,
-            ) as pbar:
-                for inputs, _ in pbar:
-                    inputs = inputs.to(self.device)
-                    outputs = self.model(inputs)
-                    loss = self.criterion(outputs, inputs)
-                    total_loss += loss.item()
-                    images_losses.append((inputs.cpu(), outputs.cpu(), loss.item()))
-                    pbar.set_postfix(loss=loss.item())
+            for inputs, _ in test_loader:
+                inputs = inputs.to(self.device)
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, inputs).item()
+                images_losses.append((inputs.cpu(), outputs.cpu(), loss))
 
-        avg_loss = total_loss / num_batches
-        self._save_reconstructed_images(images_losses)
-        return avg_loss, 0.0  # Return dummy accuracy
-
-    def _save_reconstructed_images(self, images_losses, num_images_to_show=5):
         images_losses.sort(key=lambda x: x[2])
         os.makedirs("reconstructed_images", exist_ok=True)
 

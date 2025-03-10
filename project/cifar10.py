@@ -34,11 +34,17 @@ class Decoder(nn.Module):
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, 256 * 4 * 4),
             nn.Unflatten(1, (256, 4, 4)),
-            nn.ConvTranspose2d(256, 256, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(
+                256, 256, kernel_size=3, stride=2, padding=1, output_padding=1
+            ),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(
+                256, 128, kernel_size=3, stride=2, padding=1, output_padding=1
+            ),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(
+                128, 64, kernel_size=3, stride=2, padding=1, output_padding=1
+            ),
             nn.ReLU(inplace=True),
             nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1),
             nn.Sigmoid(),
@@ -52,7 +58,9 @@ class Classifier(nn.Module):
     def __init__(self, num_classes=10):
         super(Classifier, self).__init__()
         self.classifier = nn.Sequential(
-            nn.Linear(128, ),
+            nn.Linear(
+                128,
+            ),
             nn.ReLU(),
             nn.Linear(84, num_classes),
         )
