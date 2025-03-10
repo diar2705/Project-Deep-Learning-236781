@@ -9,10 +9,7 @@ import argparse
 from torch.utils.data import DataLoader, random_split
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-import project.mnist.models as ae
-from project.mnist.trainer import AutoencoderTrainer, ClassifierTrainer
-from tqdm import tqdm
+from project.models import aux
 
 NUM_CLASSES = 10
 
@@ -33,28 +30,6 @@ def get_args():
                         help='Whether train self-supervised with reconstruction objective, or jointly with classifier for classification objective.')
     return parser.parse_args()
     
-
-
-def part1_self_supervised_autoencoder(train_loader, val_loader, test_loader, device, latent_dim=128):
-    model = ae.Autoencoder(latent_dim).to(device)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    trainer = AutoencoderTrainer(model, train_loader, val_loader, test_loader, device, criterion, optimizer)
-    trainer.fit()
-    torch.save(model.encoder.state_dict(), "encoder.pth")
-
-def part1_classifier(train_loader, val_loader, test_loader, device, latent_dim=128):
-    encoder = ae.Encoder(latent_dim)
-    encoder.load_state_dict(torch.load("encoder.pth"))
-    for param in encoder.parameters():
-        param.requires_grad = False
-    classifier = ae.Classifier(num_classes=10)
-    model = nn.Sequential(encoder, classifier).to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(classifier.parameters(), lr=0.001)
-    trainer = ClassifierTrainer(model, train_loader, val_loader, test_loader, device, criterion, optimizer)
-    trainer.fit()
-    torch.save(model.state_dict(), "classifier_model.pth")
 
 if __name__ == "__main__":
     transform = transforms.Compose([
@@ -86,7 +61,4 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_subset, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
-    
-    part1_self_supervised_autoencoder(train_loader, val_loader, test_loader, device, args.latent_dim)
-    part1_classifier(train_loader, val_loader, test_loader, device, args.latent_dim)
-
+    aux(train_loader, val_loader, test_loader, device, args.mnist, args.latent_dim)

@@ -47,6 +47,7 @@ class Decoder(nn.Module):
     def forward(self, x):
         return self.decoder(x)
 
+
 class Classifier(nn.Module):
     def __init__(self, num_classes=10):
         super(Classifier, self).__init__()
@@ -60,6 +61,7 @@ class Classifier(nn.Module):
         logits = self.classifier(x)
         probas = nn.functional.softmax(logits, dim=1)
         return logits, probas
+
 
 class Autoencoder(nn.Module):
     def __init__(self, latent_dim=128):
@@ -77,4 +79,3 @@ class Autoencoder(nn.Module):
 
     def decode(self, z):
         return self.decoder(z)
-
