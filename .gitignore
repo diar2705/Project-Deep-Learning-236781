@@ -4,4 +4,6 @@ __pycache__/
 .vscode/
 
 reconstructed_images
+correctly_classified
+incorrectly_classified
 *.pth
