@@ -58,33 +58,37 @@ class Classifier(nn.Module):
         super(Classifier, self).__init__()
         self.classifier = nn.Sequential(
             nn.Linear(latent_dim, 512),
-            nn.LayerNorm(512),
-            nn.SiLU(),
+            nn.BatchNorm1d(512),
+            nn.GELU(),
             nn.Dropout(0.2),
-            
+
             nn.Linear(512, 1024),
-            nn.LayerNorm(1024),
-            nn.SiLU(),
+            nn.BatchNorm1d(1024),
+            nn.GELU(),
             nn.Dropout(0.2),
-            
+
             nn.Linear(1024, 512),
-            nn.LayerNorm(512),
-            nn.SiLU(),
-            nn.Dropout(0.1),
-            
-            nn.Linear(512, num_classes)  # No softmax here
-        )   
+            nn.BatchNorm1d(512),
+            nn.GELU(),
+            nn.Dropout(0.2),
+
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
+            nn.Dropout(0.2),
+            nn.Linear(128, num_classes)
+        )
         self._initialize_weights()
 
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight)  # Better for SiLU and GELU
+                nn.init.xavier_normal_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
     def forward(self, x):
-        return self.classifier(x)  # No softmax, let loss function handle it
+        return self.classifier(x)
 
 class Autoencoder(nn.Module):
     def __init__(self, latent_dim=128):

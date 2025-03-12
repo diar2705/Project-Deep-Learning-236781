@@ -82,8 +82,8 @@ if __name__ == "__main__":
             [
                 transforms.ToTensor(),
                 transforms.Normalize(
-                    mean=[0.4914, 0.4822, 0.4465],
-                    std=[0.247, 0.243, 0.261]
+                    mean=[0.5, 0.5, 0.5],
+                    std=[0.5, 0.5, 0.5]
                 ),
             ]
         )

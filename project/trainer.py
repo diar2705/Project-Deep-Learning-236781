@@ -88,7 +88,7 @@ class AutoencoderTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.MSELoss()
-        self.optimizer = optim.Adam(model.parameters(),lr=0.001)
+        self.optimizer = optim.AdamW(model.parameters(),lr=0.001)
 
 
     def _run_epoch(self, loader, mode:Mode):
@@ -133,8 +133,8 @@ class AutoencoderTrainer(BaseTrainer):
         images_losses = []  # Store (original, reconstructed, loss) tuples
 
         # CIFAR-10 normalization values
-        mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(1, 3, 1, 1)
-        std = torch.tensor([0.247, 0.243, 0.261]).view(1, 3, 1, 1)
+        mean = torch.tensor([0.5, 0.5, 0.5]).view(1, 3, 1, 1)
+        std = torch.tensor([0.5, 0.5, 0.5]).view(1, 3, 1, 1)
 
         with torch.no_grad():
             for inputs, _ in test_loader:
@@ -180,7 +180,7 @@ class ClassifierTrainer(BaseTrainer):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.CrossEntropyLoss()
         # Lower weight decay
-        self.optimizer = optim.Adam(model[1].parameters(), lr=3e-4, weight_decay=0.0001)
+        self.optimizer = optim.AdamW(model[1].parameters(), lr=3e-4, weight_decay=0.0001)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20)
 
     def train(self):
@@ -200,7 +200,7 @@ class EnclassifierTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(model.parameters(), lr=3e-4,weight_decay=0.05)
+        self.optimizer = optim.AdamW(model.parameters(), lr=3e-4,weight_decay=0.05)
         
     def train(self):
         return self._run_epoch(self.train_loader, Mode.TRAIN)
