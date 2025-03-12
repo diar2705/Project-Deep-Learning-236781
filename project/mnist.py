@@ -79,3 +79,15 @@ class Autoencoder(nn.Module):
 
     def decode(self, z):
         return self.decoder(z)
+
+
+class Enclassifier(nn.Module):
+    def __init__(self, latent_dim=128):
+        super(Enclassifier, self).__init__()
+        self.encoder = Encoder(latent_dim)
+        self.classifier = Classifier()
+
+    def forward(self, x):
+        z = self.encoder(x)
+        logits, probas = self.classifier(z)
+        return logits, probas

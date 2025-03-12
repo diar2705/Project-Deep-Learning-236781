@@ -28,21 +28,33 @@ def Part1(
     trainer.fit(100)
     torch.save(model.state_dict(), "classifier_model.pth")
 
+def Part2(
+    model,
+    train_loader,
+    val_loader,
+    test_loader,
+    device,
+    latent_dim=128,
+):
+    trainer = tr.EnclassifierTrainer(
+        model, train_loader, val_loader, test_loader, device
+    )
+    trainer.fit(20)
+
 
 def aux(train_loader, val_loader, test_loader, device, mnist, latent_dim=128):
     if mnist:
-        model = mn.Autoencoder(latent_dim).to(device)
-        encoder = mn.Encoder(latent_dim)
-        classifier = mn.Classifier(num_classes=10)
+        ## model = mn.Autoencoder(latent_dim).to(device)
+        ## encoder = mn.Encoder(latent_dim)
+        ## classifier = mn.Classifier(num_classes=10)
+        model = mn.Enclassifier(latent_dim).to(device)
     else:
         model = cf.Autoencoder(latent_dim).to(device)
         encoder = cf.Encoder(latent_dim)
         classifier = cf.Classifier(num_classes=10)
 
-    Part1(
+    Part2(
         model,
-        encoder,
-        classifier,
         train_loader,
         val_loader,
         test_loader,
