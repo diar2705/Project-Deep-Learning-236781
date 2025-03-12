@@ -78,9 +78,15 @@ if __name__ == "__main__":
             root=args.data_path, train=False, download=False, transform=transform
         )
     else:
-        transform =  transforms.Compose([transforms.Resize((70, 70)),
-                                      transforms.CenterCrop((64, 64)),
-                                      transforms.ToTensor()])
+        transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.4914, 0.4822, 0.4465],
+                    std=[0.247, 0.243, 0.261]
+                ),
+            ]
+        )
         train_dataset = datasets.CIFAR10(
             root=args.data_path, train=True, download=True, transform=transform
         )

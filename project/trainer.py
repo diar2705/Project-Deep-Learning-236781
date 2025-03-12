@@ -26,8 +26,8 @@ class BaseTrainer:
                 f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%"
             )
             print("\n")
-        test_loss, test_acc = self.test()
-        print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%\n")
+            test_loss, test_acc = self.test()
+            print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%\n")
 
     def train(self):
         raise NotImplementedError
@@ -129,44 +129,64 @@ class AutoencoderTrainer(BaseTrainer):
         return test_loss, 0.0  # Return dummy accuracy
 
     def _save_reconstructed_images(self, test_loader, num_images_to_show=5):
-        self.model.eval()
-        images_losses = []
+        self.model.eval()  # Set model to evaluation mode
+        images_losses = []  # Store (original, reconstructed, loss) tuples
+
+        # CIFAR-10 normalization values
+        mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(1, 3, 1, 1)
+        std = torch.tensor([0.247, 0.243, 0.261]).view(1, 3, 1, 1)
+
         with torch.no_grad():
             for inputs, _ in test_loader:
-                inputs = inputs.to(self.device)
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, inputs).item()
-                images_losses.append((inputs.cpu(), outputs.cpu(), loss))
+                inputs = inputs.to(self.device)  # Move inputs to the device (GPU/CPU)
+                outputs = self.model(inputs)  # Get reconstructed images
+                loss = self.criterion(outputs, inputs).item()  # Compute loss
+                images_losses.append((inputs.cpu(), outputs.cpu(), loss))  # Store results on CPU
 
+        # Sort images by loss (lowest loss first)
         images_losses.sort(key=lambda x: x[2])
+
+        # Create directory for saving images
         os.makedirs("reconstructed_images", exist_ok=True)
 
+        # Visualize and save the top `num_images_to_show` images
         for i in range(min(num_images_to_show, len(images_losses))):
-            original, reconstructed, _ = images_losses[i]
-            fig, axes = plt.subplots(1, 2)
+            original, reconstructed, _ = images_losses[i]  # Get original and reconstructed images
+            fig, axes = plt.subplots(1, 2)  # Create a figure with two subplots
 
-            if original.shape[1] == 3:
-                axes[0].imshow(original[0].permute(1, 2, 0).numpy())
-                axes[1].imshow(reconstructed[0].permute(1, 2, 0).numpy())
-            else:
-                axes[0].imshow(original[0][0], cmap="gray")
-                axes[1].imshow(reconstructed[0][0], cmap="gray")
+            # Reverse normalization
+            original = original * std + mean  # Reverse normalization for original images
+            reconstructed = reconstructed * std + mean  # Reverse normalization for reconstructed images
+
+            # Clip pixel values to [0, 1]
+            original = original.clamp(0, 1)
+            reconstructed = reconstructed.clamp(0, 1)
+
+            if original.shape[1] == 3:  # Color image (CIFAR-10)
+                axes[0].imshow(original[0].permute(1, 2, 0).numpy())  # Display original image
+                axes[1].imshow(reconstructed[0].permute(1, 2, 0).numpy())  # Display reconstructed image
+            else:  # Grayscale image
+                axes[0].imshow(original[0][0], cmap="gray")  # Display original image
+                axes[1].imshow(reconstructed[0][0], cmap="gray")  # Display reconstructed image
 
             axes[0].set_title("Original")
             axes[1].set_title("Reconstructed")
-            plt.savefig(f"reconstructed_images/image_{i+1}.png")
-            plt.close(fig)
+            plt.savefig(f"reconstructed_images/image_{i+1}.png")  # Save the figure
+            plt.close(fig)  # Close the figure to free memory
 
 
 class ClassifierTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(model[1].parameters(), lr=3e-4,weight_decay=0.05)
-
+        # Lower weight decay
+        self.optimizer = optim.Adam(model[1].parameters(), lr=3e-4, weight_decay=0.0001)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20)
 
     def train(self):
-        return self._run_epoch(self.train_loader, Mode.TRAIN)
+        loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)
+        self.scheduler.step()
+        return loss, accuracy
 
     def validate(self):
         return self._run_epoch(self.val_loader, Mode.VAL)
