@@ -175,3 +175,20 @@ class ClassifierTrainer(BaseTrainer):
         self.model.eval()
         test_loss, accuracy = self._run_epoch(self.test_loader,Mode.TEST)
         return test_loss, accuracy
+
+class EnclassifierTrainer(BaseTrainer):
+    def __init__(self, model, train_loader, val_loader, test_loader, device):
+        super().__init__(model, train_loader, val_loader, test_loader, device)
+        self.criterion = torch.nn.CrossEntropyLoss()
+        self.optimizer = optim.Adam(model.parameters(), lr=3e-4,weight_decay=0.05)
+        
+    def train(self):
+        return self._run_epoch(self.train_loader, Mode.TRAIN)
+    
+    def validate(self):
+        return self._run_epoch(self.val_loader, Mode.VAL)
+    
+    def test(self):
+        self.model.eval()
+        test_loss, accuracy = self._run_epoch(self.test_loader, Mode.TEST)
+        return test_loss, accuracy
