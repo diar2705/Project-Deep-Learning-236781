@@ -36,19 +36,40 @@ class ResidualBlock(nn.Module):
 class Encoder(nn.Module):
     def __init__(self, latent_dim=128, input_channels=3):
         super(Encoder, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(input_channels, 64, kernel_size=5, stride=1, padding=2),  # Output: (64, 32, 32)
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),  # Output: (64, 15, 15)
-            ResidualBlock(64, 128, stride=2),  # Output: (128, 8, 8)
-            ResidualBlock(128, 256, stride=2),  # Output: (256, 4, 4)
-            nn.Flatten(),  # Output: (256 * 4 * 4 = 4096)
-            nn.Linear(256 * 4 * 4, latent_dim),  # Output: latent_dim
+        
+        # Initial layers
+        self.initial_layers = nn.Sequential(
+            nn.Conv2d(input_channels, 64, kernel_size=11, stride=4, padding=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+        )
+        
+        # Residual blocks
+        self.residual_blocks = nn.Sequential(
+            ResidualBlock(64, 192, stride=1),  # Replace the first Conv2d with a ResidualBlock
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            
+            ResidualBlock(192, 384, stride=1),  # Replace the second Conv2d with a ResidualBlock
+            ResidualBlock(384, 256, stride=1),  # Replace the third Conv2d with a ResidualBlock
+            ResidualBlock(256, 256, stride=1),  # Replace the fourth Conv2d with a ResidualBlock
+            nn.MaxPool2d(kernel_size=3, stride=2),
+        )
+        
+        # Final layers
+        self.final_layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(0.3),
+            nn.Linear(256 , 512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.3),
+            nn.Linear(512, latent_dim),
         )
 
     def forward(self, x):
-        return self.encoder(x)
+        x = self.initial_layers(x)
+        x = self.residual_blocks(x)
+        x = self.final_layers(x)
+        return x
 
 
 class Decoder(nn.Module):
@@ -63,15 +84,24 @@ class Decoder(nn.Module):
             nn.BatchNorm2d(256),
             nn.LeakyReLU(inplace=True),
             nn.Upsample(scale_factor=2),  # Output: (256, 8, 8)
+            
+            
             nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1),  # Output: (128, 8, 8)
             nn.BatchNorm2d(128),
             nn.LeakyReLU(inplace=True),
             nn.Upsample(scale_factor=2),  # Output: (128, 16, 16)
+            
+            
             nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1),  # Output: (64, 16, 16)
             nn.BatchNorm2d(64),
             nn.LeakyReLU(inplace=True),
             nn.Upsample(scale_factor=2),  # Output: (64, 32, 32)
+            
+            
             nn.Conv2d(64, output_channels, kernel_size=3, stride=1, padding=1),  # Output: (3, 32, 32)
+            nn.BatchNorm2d(3),
+            nn.LeakyReLU(inplace=True),
+            nn.Upsample(scale_factor=2),  # Output: (3, 64, 64)
             nn.Tanh(),
         )
 
@@ -85,20 +115,20 @@ class Classifier(nn.Module):
     def __init__(self, latent_dim=128, num_classes=10):
         super(Classifier, self).__init__()
         self.classifier = nn.Sequential(
-            nn.Linear(latent_dim, 1024),
-            nn.BatchNorm1d(1024),
+            nn.Linear(latent_dim, 512),
+            nn.BatchNorm1d(512),
             nn.GELU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.3),
             
-            nn.Linear(1024, 1024),
+            nn.Linear(512, 1024),
             nn.BatchNorm1d(1024),
             nn.GELU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.3),
             
             nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.1),
             
             nn.Linear(512, num_classes)
         )
@@ -110,9 +140,6 @@ class Classifier(nn.Module):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')  # Approximate GELU as ReLU
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-
-        
-
     def forward(self, x):
         logits = self.classifier(x)
         probas = nn.functional.softmax(logits, dim=1)

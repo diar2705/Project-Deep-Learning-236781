@@ -57,14 +57,6 @@ def get_args():
 
 
 if __name__ == "__main__":
-    transform = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]
-            ),  # one possible convenient normalization. You don't have to use it.
-        ]
-    )
     args = get_args()
     freeze_seeds(args.seed)
     device = torch.device(args.device)
@@ -86,6 +78,9 @@ if __name__ == "__main__":
             root=args.data_path, train=False, download=False, transform=transform
         )
     else:
+        transform =  transforms.Compose([transforms.Resize((70, 70)),
+                                      transforms.CenterCrop((64, 64)),
+                                      transforms.ToTensor()])
         train_dataset = datasets.CIFAR10(
             root=args.data_path, train=True, download=True, transform=transform
         )
