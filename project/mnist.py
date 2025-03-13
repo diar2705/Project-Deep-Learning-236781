@@ -58,9 +58,7 @@ class Classifier(nn.Module):
         )
 
     def forward(self, x):
-        logits = self.classifier(x)
-        probas = nn.functional.softmax(logits, dim=1)
-        return logits, probas
+        return self.classifier(x)
 
 
 class Autoencoder(nn.Module):
@@ -89,5 +87,4 @@ class Enclassifier(nn.Module):
 
     def forward(self, x):
         z = self.encoder(x)
-        logits, probas = self.classifier(z)
-        return logits, probas
+        return self.classifier(z)
