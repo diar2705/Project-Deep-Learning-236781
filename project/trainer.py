@@ -19,15 +19,16 @@ class BaseTrainer:
         
     def fit(self, num_epochs=1):
         for epoch in range(num_epochs):
+            print(f"Epoch {epoch+1}/{num_epochs}")
             train_loss, train_acc = self.train()
             val_loss, val_acc = self.validate()
             tqdm.write(
-                f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, "
+                f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, "
                 f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%"
             )
-            print("\n")
-            test_loss, test_acc = self.test()
-            print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%\n")
+            print()
+        test_loss, test_acc = self.test()
+        print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%\n")
 
     def train(self):
         raise NotImplementedError
@@ -180,7 +181,7 @@ class ClassifierTrainer(BaseTrainer):
         # Lower weight decay
         self.optimizer = optim.AdamW(
             model[1].parameters(),
-            lr=1e-3,  # Adjusted learning rate
+            lr=2e-3,  # Adjusted learning rate
             weight_decay=1e-4  # Increased weight decay for better regularization
         )
 
