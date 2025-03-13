@@ -118,4 +118,4 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_subset, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    aux(train_loader, val_loader, test_loader, device, args.mnist, args.latent_dim)
+    aux(train_loader, val_loader, test_loader, device, args.mnist, args.latent_dim, args.self_supervised)
