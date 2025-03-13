@@ -65,8 +65,6 @@ class BaseTrainer:
                     self.optimizer.zero_grad()
 
                 outputs = self.model(inputs)
-                if isinstance(outputs, tuple):
-                    outputs = outputs[1]
                 loss = self.criterion(outputs, targets)
 
                 if mode == Mode.TRAIN:
@@ -88,7 +86,7 @@ class AutoencoderTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.MSELoss()
-        self.optimizer = optim.AdamW(model.parameters(),lr=0.001)
+        self.optimizer = optim.AdamW(model.parameters(),lr=0.001 , weight_decay= 1e-5)
 
 
     def _run_epoch(self, loader, mode:Mode):
@@ -180,8 +178,18 @@ class ClassifierTrainer(BaseTrainer):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.CrossEntropyLoss()
         # Lower weight decay
-        self.optimizer = optim.AdamW(model[1].parameters(), lr=3e-4, weight_decay=0.0001)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20)
+        self.optimizer = optim.AdamW(
+            model[1].parameters(),
+            lr=1e-3,  # Adjusted learning rate
+            weight_decay=1e-4  # Increased weight decay for better regularization
+        )
+
+        # Improved scheduler with adjusted T_max and eta_min
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer,
+            T_max=50,  # Adjusted T_max to match your training schedule
+            eta_min=1e-6  # Lower bound for the learning rate
+        )
 
     def train(self):
         loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)

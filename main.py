@@ -78,7 +78,22 @@ if __name__ == "__main__":
             root=args.data_path, train=False, download=False, transform=transform
         )
     else:
-        transform = transforms.Compose(
+        transform_train = transforms.Compose(
+            [
+                # Random horizontal flipping
+                transforms.RandomHorizontalFlip(),
+                # Random rotation (optional)
+                transforms.RandomRotation(10),
+                # Convert to tensor
+                transforms.ToTensor(),
+                # Normalize with mean and std for CIFAR-10
+                transforms.Normalize(
+                    mean=[0.5, 0.5, 0.5],  # Normalize to [-1, 1] range
+                    std=[0.5, 0.5, 0.5]
+                ),
+            ]
+        )
+        transform_test = transforms.Compose(
             [
                 transforms.ToTensor(),
                 transforms.Normalize(
@@ -88,10 +103,10 @@ if __name__ == "__main__":
             ]
         )
         train_dataset = datasets.CIFAR10(
-            root=args.data_path, train=True, download=True, transform=transform
+            root=args.data_path, train=True, download=True, transform=transform_train
         )
         test_dataset = datasets.CIFAR10(
-            root=args.data_path, train=False, download=True, transform=transform
+            root=args.data_path, train=False, download=True, transform=transform_test
         )
 
     # When you create your dataloader you should split train_dataset or test_dataset to leave some aside for validation
