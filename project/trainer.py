@@ -71,9 +71,8 @@ class BaseTrainer:
                 if mode == Mode.TRAIN:
                     loss.backward()
                     self.optimizer.step()
-
                 total_loss += loss.item()
-                _, predicted = outputs.max(1)
+                predicted = torch.argmax(outputs,dim=1)
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 
@@ -122,7 +121,6 @@ class AutoencoderTrainer(BaseTrainer):
         return self._run_epoch(self.val_loader, Mode.VAL)
 
     def test(self):
-        self.model.eval()
         test_loss, _ = self._run_epoch(self.test_loader, Mode.TEST)
         self._save_reconstructed_images(self.test_loader)
         return test_loss, 0.0  # Return dummy accuracy
@@ -201,7 +199,6 @@ class ClassifierTrainer(BaseTrainer):
         return self._run_epoch(self.val_loader, Mode.VAL)
 
     def test(self):
-        self.model.eval()
         test_loss, accuracy = self._run_epoch(self.test_loader,Mode.TEST)
         return test_loss, accuracy
 
@@ -218,6 +215,5 @@ class EnclassifierTrainer(BaseTrainer):
         return self._run_epoch(self.val_loader, Mode.VAL)
     
     def test(self):
-        self.model.eval()
         test_loss, accuracy = self._run_epoch(self.test_loader, Mode.TEST)
         return test_loss, accuracy
