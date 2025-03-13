@@ -16,12 +16,20 @@ class BaseTrainer:
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.device = device
+        self.train_losses = []
+        self.val_losses = []
+        self.train_accuracies = []
+        self.val_accuracies = []
         
     def fit(self, num_epochs=1):
         for epoch in range(num_epochs):
             print(f"Epoch {epoch+1}/{num_epochs}")
             train_loss, train_acc = self.train()
             val_loss, val_acc = self.validate()
+            self.train_losses.append(train_loss)
+            self.train_accuracies.append(train_acc)
+            self.val_losses.append(val_loss)
+            self.val_accuracies.append(val_acc)
             tqdm.write(
                 f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, "
                 f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%"
@@ -29,6 +37,7 @@ class BaseTrainer:
             print()
         test_loss, test_acc = self.test()
         print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%\n")
+        self._plot_metrics(num_epochs)
 
     def train(self):
         raise NotImplementedError
@@ -80,6 +89,22 @@ class BaseTrainer:
                 pbar.set_postfix(loss=loss.item(), accuracy=f"{accuracy:.2f}%")
 
         return total_loss / num_batches, accuracy
+
+    def _plot_metrics(self, num_epochs):
+        epochs = range(1, num_epochs + 1)
+        plt.figure(figsize=(10,4))
+        plt.subplot(1,2,1)
+        plt.plot(epochs, self.train_losses, label="Train Loss")
+        plt.plot(epochs, self.val_losses, label="Val Loss")
+        plt.xlabel("Epoch")
+        plt.legend()
+        plt.subplot(1,2,2)
+        plt.plot(epochs, self.train_accuracies, label="Train Acc")
+        plt.plot(epochs, self.val_accuracies, label="Val Acc")
+        plt.xlabel("Epoch")
+        plt.legend()
+        plt.savefig("accuracy_loss_plot.png")
+        plt.close()
 
 
 class AutoencoderTrainer(BaseTrainer):
