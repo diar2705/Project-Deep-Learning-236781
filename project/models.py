@@ -4,7 +4,7 @@ import project.trainer as tr
 import torch
 import torch.nn as nn
 from enum import Enum
-
+from utils import plot_tsne
 
 class Part(Enum):
     ONE = 1
@@ -96,6 +96,9 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, par
         decoder = cf.Decoder(latent_dim)
         classifier = cf.Classifier(num_classes=10)
 
+    # This variable will hold the encoder we want to use for TSNE plotting.
+    final_encoder = None
+
     if part == 1:
         model = Autoencoder(encoder, decoder, latent_dim).to(device)
         Part1(
@@ -108,12 +111,16 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, par
             device,
             latent_dim,
         )
+        # In Part1 the encoder is updated and frozen inside Part1.
+        final_encoder = encoder
     elif part == 2:
         model = Enclassifier(encoder, classifier, latent_dim).to(device)
         trainer = tr.EnclassifierTrainer(
             model, train_loader, val_loader, test_loader, device
         )
         trainer.fit(20)
+        # For Enclassifier we extract the encoder from the composite model.
+        final_encoder = model.encoder
     elif part == 3:
         Part3(
             encoder,
@@ -124,3 +131,5 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, par
             device,
             latent_dim,
         )
+        final_encoder = encoder
+    plot_tsne(final_encoder, test_loader, device)

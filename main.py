@@ -1,15 +1,11 @@
 import torch
 from torchvision import datasets, transforms
-import numpy as np
-from matplotlib import pyplot as plt
-from utils import plot_tsne
+from torch.utils.data import DataLoader, Subset
 import numpy as np
 import random
 import argparse
-from torch.utils.data import DataLoader, random_split
-import torch.nn as nn
-import torch.nn.functional as F
 from project.models import aux
+
 
 NUM_CLASSES = 10
 
@@ -52,7 +48,7 @@ def get_args():
         type=int,
         choices=[1, 2, 3],
         default=1,
-        help="Specify which part of the project to run (1, 2, or 3)."
+        help="Specify which part of the project to run (1, 2, or 3).",
     )
     return parser.parse_args()
 
@@ -67,9 +63,7 @@ if __name__ == "__main__":
         transform = transforms.Compose(
             [
                 transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.1307], std=[0.3081]
-                ),  # MNIST-specific normalization
+                transforms.Normalize(mean=[0.1307], std=[0.3081]),
             ]
         )
         train_dataset = datasets.MNIST(
@@ -78,65 +72,70 @@ if __name__ == "__main__":
         test_dataset = datasets.MNIST(
             root=args.data_path, train=False, download=False, transform=transform
         )
+        # For MNIST you can use the same transform for both training and validation.
+        full_train_dataset = train_dataset
     else:
+        # Define separate transforms for training and testing/validation
         if args.part != 3:
             transform_train = transforms.Compose(
                 [
-                    # Random horizontal flipping
                     transforms.RandomHorizontalFlip(),
-                    # Random rotation (optional)
                     transforms.RandomRotation(10),
-                    # Convert to tensor
                     transforms.ToTensor(),
-                    # Normalize with mean and std for CIFAR-10
-                    transforms.Normalize(
-                        mean=[0.5, 0.5, 0.5],  # Normalize to [-1, 1] range
-                        std=[0.5, 0.5, 0.5]
-                    ),
-                ]
-            )
-            transform_test = transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.5, 0.5, 0.5],
-                        std=[0.5, 0.5, 0.5]
-                    ),
+                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
                 ]
             )
         else:
             transform_train = transforms.Compose(
                 [
                     transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.5, 0.5, 0.5],
-                        std=[0.5, 0.5, 0.5]
-                    ),
+                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
                 ]
             )
-            transform_test = transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.5, 0.5, 0.5],
-                        std=[0.5, 0.5, 0.5]
-                    ),
-                ]
-            )
-        train_dataset = datasets.CIFAR10(
+        transform_test = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+            ]
+        )
+
+        # Create two separate dataset instances: one for training (with augmentations) and one for validation (without augmentations)
+        full_train_dataset = datasets.CIFAR10(
             root=args.data_path, train=True, download=True, transform=transform_train
+        )
+        full_val_dataset = datasets.CIFAR10(
+            root=args.data_path, train=True, download=True, transform=transform_test
         )
         test_dataset = datasets.CIFAR10(
             root=args.data_path, train=False, download=True, transform=transform_test
         )
 
-    # When you create your dataloader you should split train_dataset or test_dataset to leave some aside for validation
-    val_size = int(0.1 * len(train_dataset))  # 10% for validation
-    train_size = len(train_dataset) - val_size
-    train_subset, val_subset = random_split(train_dataset, [train_size, val_size])
+    # Define the split size and obtain indices
+    val_size = int(0.1 * len(full_train_dataset))
+    train_size = len(full_train_dataset) - val_size
+    indices = list(range(len(full_train_dataset)))
+    random.shuffle(indices)
+    train_indices = indices[:train_size]
+    val_indices = indices[train_size:]
+
+    # Create subsets with corresponding transforms
+    if args.mnist:
+        train_subset = Subset(full_train_dataset, train_indices)
+        val_subset = Subset(full_train_dataset, val_indices)
+    else:
+        train_subset = Subset(full_train_dataset, train_indices)
+        val_subset = Subset(full_val_dataset, val_indices)
 
     train_loader = DataLoader(train_subset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_subset, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    aux(train_loader, val_loader, test_loader, device, args.mnist, args.latent_dim, args.part)
+    aux(
+        train_loader,
+        val_loader,
+        test_loader,
+        device,
+        args.mnist,
+        args.latent_dim,
+        args.part,
+    )
