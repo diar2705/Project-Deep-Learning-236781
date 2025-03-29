@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import os
 import torch.optim as optim
 from enum import Enum
+import torchvision.transforms as transforms
+
 class Mode(Enum):
     TRAIN = 1
     VAL = 2
@@ -227,6 +229,37 @@ class ClassifierTrainer(BaseTrainer):
         test_loss, accuracy = self._run_epoch(self.test_loader,Mode.TEST)
         return test_loss, accuracy
 
+class NTXentLoss(torch.nn.Module):
+    def __init__(self, temperature=0.5):
+        super(NTXentLoss, self).__init__()
+        self.temperature = temperature
+        self.cosine_similarity = torch.nn.CosineSimilarity(dim=-1)
+
+    def forward(self, z_i, z_j):
+        batch_size = z_i.size(0)
+        z = torch.cat([z_i, z_j], dim=0)  # Concatenate positive pairs
+        similarity_matrix = self.cosine_similarity(z.unsqueeze(1), z.unsqueeze(0))  # Compute similarity matrix
+
+        # Create positive mask
+        positive_mask = torch.eye(batch_size, dtype=torch.bool, device=z.device)
+        positive_mask = torch.cat([positive_mask, positive_mask], dim=0)
+        positive_mask = torch.cat([positive_mask, positive_mask.T], dim=1)
+
+        # Mask out self-similarities
+        mask = ~torch.eye(2 * batch_size, dtype=torch.bool, device=z.device)
+
+        # Compute logits
+        logits = similarity_matrix / self.temperature
+        logits = logits[mask].view(2 * batch_size, -1)
+
+        # Compute positive logits
+        positive_logits = similarity_matrix[positive_mask].view(2 * batch_size, -1)
+
+        # Compute NT-Xent loss
+        loss = -torch.log(torch.exp(positive_logits / self.temperature) / torch.exp(logits).sum(dim=1, keepdim=True))
+        return loss.mean()
+
+
 class EnclassifierTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
@@ -242,3 +275,75 @@ class EnclassifierTrainer(BaseTrainer):
     def test(self):
         test_loss, accuracy = self._run_epoch(self.test_loader, Mode.TEST)
         return test_loss, accuracy
+
+
+class CLRTrainer(BaseTrainer):
+    def __init__(self, model, train_loader, val_loader, test_loader, device):
+        super(CLRTrainer,self).__init__(model, train_loader, val_loader, test_loader, device)
+        self.criterion = NTXentLoss(temperature=0.3)
+        self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer,
+            T_max=50,  # Adjusted T_max to match your training schedule
+            eta_min=1e-6 # Lower bound for the learning rate
+        )
+        self.augmentation = transforms.Compose([
+            transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.GaussianBlur(kernel_size=3),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+    
+    def train(self):
+        loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)
+        self.scheduler.step()
+        return loss, accuracy
+    
+    def validate(self):
+        return self._run_epoch(self.val_loader, Mode.VAL)
+    
+    def test(self):
+        return self._run_epoch(self.test_loader, Mode.TEST)
+    
+    def _run_epoch(self, loader, mode: Mode):
+        self.model.train() if mode == Mode.TRAIN else self.model.eval()
+        total_loss = 0.0
+        num_batches = len(loader)
+
+        with tqdm(
+            loader,
+            desc = (
+                "Training" if mode == Mode.TRAIN else 
+                "Validating" if mode == Mode.VAL else 
+                "Testing" if mode == Mode.TEST else 
+                "Unknown Mode"
+            )
+            , leave=True) as pbar:
+            for inputs, _ in pbar:
+                inputs = inputs.to(self.device)
+
+                # Generate two augmented views of the same input
+                inputs1 = self.augmentation(inputs)
+                inputs2 = self.augmentation(inputs)
+
+                if mode == Mode.TRAIN:
+                    self.optimizer.zero_grad()
+
+                # Forward pass
+                z_i = self.model(inputs1)
+                z_j = self.model(inputs2)
+
+                # Compute loss
+                loss = self.criterion(z_i, z_j)
+
+                if mode == Mode.TRAIN:
+                    loss.backward()
+                    self.optimizer.step()
+
+                total_loss += loss.item()
+                pbar.set_postfix(loss=loss.item())
+
+        return total_loss / num_batches, 0.0  # Return dummy accuracy
