@@ -73,6 +73,7 @@ def Part3(
     device,
     latent_dim=128,
 ):
+    encoder = encoder.to(device)
     trainer = tr.CLRTrainer(encoder, train_loader, val_loader, test_loader, device)
     trainer.fit(30)
     torch.save(encoder.state_dict(), "encoder3.pth")
