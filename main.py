@@ -48,10 +48,11 @@ def get_args():
         help="Whether to use MNIST (True) or CIFAR10 (False) data",
     )
     parser.add_argument(
-        "--self-supervised",
-        action="store_true",
-        default=False,
-        help="Whether train self-supervised with reconstruction objective, or jointly with classifier for classification objective.",
+        "--part",
+        type=int,
+        choices=[1, 2, 3],
+        default=1,
+        help="Specify which part of the project to run (1, 2, or 3)."
     )
     return parser.parse_args()
 
@@ -78,30 +79,50 @@ if __name__ == "__main__":
             root=args.data_path, train=False, download=False, transform=transform
         )
     else:
-        transform_train = transforms.Compose(
-            [
-                # Random horizontal flipping
-                transforms.RandomHorizontalFlip(),
-                # Random rotation (optional)
-                transforms.RandomRotation(10),
-                # Convert to tensor
-                transforms.ToTensor(),
-                # Normalize with mean and std for CIFAR-10
-                transforms.Normalize(
-                    mean=[0.5, 0.5, 0.5],  # Normalize to [-1, 1] range
-                    std=[0.5, 0.5, 0.5]
-                ),
-            ]
-        )
-        transform_test = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.5, 0.5, 0.5],
-                    std=[0.5, 0.5, 0.5]
-                ),
-            ]
-        )
+        if args.part != 3:
+            transform_train = transforms.Compose(
+                [
+                    # Random horizontal flipping
+                    transforms.RandomHorizontalFlip(),
+                    # Random rotation (optional)
+                    transforms.RandomRotation(10),
+                    # Convert to tensor
+                    transforms.ToTensor(),
+                    # Normalize with mean and std for CIFAR-10
+                    transforms.Normalize(
+                        mean=[0.5, 0.5, 0.5],  # Normalize to [-1, 1] range
+                        std=[0.5, 0.5, 0.5]
+                    ),
+                ]
+            )
+            transform_test = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.5, 0.5, 0.5],
+                        std=[0.5, 0.5, 0.5]
+                    ),
+                ]
+            )
+        else:
+            transform_train = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.5, 0.5, 0.5],
+                        std=[0.5, 0.5, 0.5]
+                    ),
+                ]
+            )
+            transform_test = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.5, 0.5, 0.5],
+                        std=[0.5, 0.5, 0.5]
+                    ),
+                ]
+            )
         train_dataset = datasets.CIFAR10(
             root=args.data_path, train=True, download=True, transform=transform_train
         )
@@ -118,4 +139,4 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_subset, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    aux(train_loader, val_loader, test_loader, device, args.mnist, args.latent_dim, args.self_supervised)
+    aux(train_loader, val_loader, test_loader, device, args.mnist, args.latent_dim, args.part)

@@ -52,17 +52,40 @@ def Part1(
         model, train_loader, val_loader, test_loader, device
     )
     trainer.fit(30)
-    torch.save(model.encoder.state_dict(), "encoder.pth")
-    encoder.load_state_dict(torch.load("encoder.pth"))
+    torch.save(model.encoder.state_dict(), "encoder1.pth")
+    encoder.load_state_dict(torch.load("encoder1.pth"))
     for param in encoder.parameters():
         param.requires_grad = False
     model = nn.Sequential(encoder, classifier).to(device)
     trainer = tr.ClassifierTrainer(model, train_loader, val_loader, test_loader, device)
     trainer.fit(25)
-    torch.save(model.state_dict(), "classifier_model.pth")
+    torch.save(model.state_dict(), "classifier_model1.pth")
     
 
-def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, self_supervised):
+def Part3(
+    encoder,
+    classifier,
+    train_loader,
+    val_loader,
+    test_loader,
+    device,
+    latent_dim=128,
+):
+    trainer = tr.CLRTrainer(
+        encoder,train_loader, val_loader, test_loader, device
+    )
+    trainer.fit(30)
+    torch.save(encoder.state_dict(), "encoder3.pth")
+    encoder.load_state_dict(torch.load("encoder3.pth"))
+    for param in encoder.parameters():
+        param.requires_grad = False
+    model = nn.Sequential(encoder, classifier).to(device)
+    trainer = tr.ClassifierTrainer(model, train_loader, val_loader, test_loader, device)
+    trainer.fit(25)
+    torch.save(model.state_dict(), "classifier_model3.pth")
+    
+
+def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, part):
     
     if is_mnist:
         encoder = mn.Encoder(latent_dim)
@@ -73,12 +96,14 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, sel
         decoder = cf.Decoder(latent_dim)
         classifier = cf.Classifier(num_classes=10)
 
-    if self_supervised:
+    if part == 1:
         model = Autoencoder(encoder, decoder, latent_dim).to(device)
         Part1(model, encoder, classifier, train_loader, val_loader, test_loader, device, latent_dim)
-    else:
+    elif part == 2:
         model = Enclassifier(encoder, classifier, latent_dim).to(device)
         trainer = tr.EnclassifierTrainer(
         model, train_loader, val_loader, test_loader, device
         )
         trainer.fit(20)
+    elif part == 3:
+        Part3(encoder, classifier, train_loader, val_loader, test_loader, device, latent_dim)
