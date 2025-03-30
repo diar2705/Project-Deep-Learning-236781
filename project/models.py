@@ -6,6 +6,7 @@ import torch.nn as nn
 from enum import Enum
 from utils import plot_tsne
 
+
 class Part(Enum):
     ONE = 1
     TWO = 2
@@ -48,19 +49,26 @@ def Part1(
     val_loader,
     test_loader,
     device,
+    is_mnist,
     latent_dim=128,
 ):
     trainer = tr.AutoencoderTrainer(
         model, train_loader, val_loader, test_loader, device
     )
-    trainer.fit(30)
+    if is_mnist:
+        trainer.fit(10)
+    else:
+        trainer.fit(30)
     torch.save(model.encoder.state_dict(), "encoder1.pth")
     encoder.load_state_dict(torch.load("encoder1.pth"))
     for param in encoder.parameters():
         param.requires_grad = False
     model = nn.Sequential(encoder, classifier).to(device)
     trainer = tr.ClassifierTrainer(model, train_loader, val_loader, test_loader, device)
-    trainer.fit(25)
+    if is_mnist:
+        trainer.fit(10)
+    else:
+        trainer.fit(50)
     torch.save(model.state_dict(), "classifier_model1.pth")
 
 
@@ -87,7 +95,6 @@ def Part3(
 
 
 def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, part):
-
     if is_mnist:
         encoder = mn.Encoder(latent_dim)
         decoder = mn.Decoder(latent_dim)
@@ -97,7 +104,6 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, par
         decoder = cf.Decoder(latent_dim)
         classifier = cf.Classifier(num_classes=10)
 
-    # This variable will hold the encoder we want to use for TSNE plotting.
     final_encoder = None
 
     if part == 1:
@@ -110,9 +116,9 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, par
             val_loader,
             test_loader,
             device,
+            is_mnist,
             latent_dim,
         )
-        # In Part1 the encoder is updated and frozen inside Part1.
         final_encoder = encoder
     elif part == 2:
         model = Enclassifier(encoder, classifier, latent_dim).to(device)
@@ -120,7 +126,6 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, par
             model, train_loader, val_loader, test_loader, device
         )
         trainer.fit(20)
-        # For Enclassifier we extract the encoder from the composite model.
         final_encoder = model.encoder
     elif part == 3:
         Part3(
