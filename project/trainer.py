@@ -5,6 +5,8 @@ import os
 import torch.optim as optim
 from enum import Enum
 import torchvision.transforms as transforms
+import torch.nn.functional as F
+import torch.nn as nn
 
 
 class Mode(Enum):
@@ -118,10 +120,10 @@ class AutoencoderTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.MSELoss()
-        self.optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-5)
+        self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer,
-            T_max=100,  # Adjusted T_max to match your training schedule
+            T_max=25,  # Adjusted T_max to match your training schedule
             eta_min=1e-6,  # Lower bound for the learning rate
         )
 
@@ -171,10 +173,6 @@ class AutoencoderTrainer(BaseTrainer):
         self.model.eval()  # Set model to evaluation mode
         images_losses = []  # Store (original, reconstructed, loss) tuples
 
-        # CIFAR-10 normalization values
-        mean = torch.tensor([0.5, 0.5, 0.5]).view(1, 3, 1, 1)
-        std = torch.tensor([0.5, 0.5, 0.5]).view(1, 3, 1, 1)
-
         with torch.no_grad():
             for inputs, _ in test_loader:
                 inputs = inputs.to(self.device)  # Move inputs to the device (GPU/CPU)
@@ -196,14 +194,6 @@ class AutoencoderTrainer(BaseTrainer):
                 i
             ]  # Get original and reconstructed images
             fig, axes = plt.subplots(1, 2)  # Create a figure with two subplots
-
-            # Reverse normalization
-            original = (
-                original * std + mean
-            )  # Reverse normalization for original images
-            reconstructed = (
-                reconstructed * std + mean
-            )  # Reverse normalization for reconstructed images
 
             # Clip pixel values to [0, 1]
             original = original.clamp(0, 1)
@@ -259,42 +249,6 @@ class ClassifierTrainer(BaseTrainer):
         return test_loss, accuracy
 
 
-class NTXentLoss(torch.nn.Module):
-    def __init__(self, temperature=0.5):
-        super(NTXentLoss, self).__init__()
-        self.temperature = temperature
-        self.cosine_similarity = torch.nn.CosineSimilarity(dim=-1)
-
-    def forward(self, z_i, z_j):
-        batch_size = z_i.size(0)
-        z = torch.cat([z_i, z_j], dim=0)  # Concatenate positive pairs
-        similarity_matrix = self.cosine_similarity(
-            z.unsqueeze(1), z.unsqueeze(0)
-        )  # Compute similarity matrix
-
-        # Create positive mask
-        positive_mask = torch.eye(batch_size, dtype=torch.bool, device=z.device)
-        positive_mask = torch.cat([positive_mask, positive_mask], dim=0)
-        positive_mask = torch.cat([positive_mask, positive_mask.T], dim=1)
-
-        # Mask out self-similarities
-        mask = ~torch.eye(2 * batch_size, dtype=torch.bool, device=z.device)
-
-        # Compute logits
-        logits = similarity_matrix / self.temperature
-        logits = logits[mask].view(2 * batch_size, -1)
-
-        # Compute positive logits
-        positive_logits = similarity_matrix[positive_mask].view(2 * batch_size, -1)
-
-        # Compute NT-Xent loss
-        loss = -torch.log(
-            torch.exp(positive_logits / self.temperature)
-            / torch.exp(logits).sum(dim=1, keepdim=True)
-        )
-        return loss.mean()
-
-
 class EnclassifierTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
@@ -302,7 +256,7 @@ class EnclassifierTrainer(BaseTrainer):
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer,
-            T_max=100,  # Adjusted T_max to match your training schedule
+            T_max=30,  # Adjusted T_max to match your training schedule
             eta_min=1e-6,  # Lower bound for the learning rate
         )
 
@@ -319,27 +273,63 @@ class EnclassifierTrainer(BaseTrainer):
         return test_loss, accuracy
 
 
+class NTXentLoss(nn.modules.loss._Loss):
+    def __init__(self, temperature=0.5, reduction='mean'):
+        super().__init__(reduction=reduction)
+        self.temperature = temperature
+        self.eps = 1e-8
+
+    def forward(self, z_i, z_j):
+        """
+        Calculate NT-Xent loss as described in SimCLR paper
+        Args:
+            z_i, z_j: Batch of embeddings from two augmented versions of input
+        """
+        batch_size = z_i.size(0)
+        device = z_i.device
+        
+        # Normalize the embeddings along the feature dimension
+        z_i = F.normalize(z_i, dim=1)
+        z_j = F.normalize(z_j, dim=1)
+        
+        # Concatenate to get all embeddings
+        z = torch.cat([z_i, z_j], dim=0)
+        
+        # Calculate similarity matrix
+        similarity_matrix = torch.matmul(z, z.T) / self.temperature
+        
+        # Remove diagonal elements (self-similarity)
+        sim_i_j = torch.diag(similarity_matrix, batch_size)
+        sim_j_i = torch.diag(similarity_matrix, -batch_size)
+        
+        # Create positive pairs
+        positive_samples = torch.cat([sim_i_j, sim_j_i], dim=0)
+        
+        # Create mask to exclude self-similarity
+        mask = ~torch.eye(2 * batch_size, dtype=bool, device=device)
+        negative_samples = similarity_matrix[mask].view(2 * batch_size, -1)
+        
+        # Combine positive and negative samples for the denominator calculation
+        logits = torch.cat([positive_samples.view(-1, 1), negative_samples], dim=1)
+        
+        # Use softmax cross-entropy loss
+        labels = torch.zeros(2 * batch_size, dtype=torch.long, device=device)
+        loss = F.cross_entropy(logits, labels)
+        
+        return loss
+
+
 class CLRTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
-        super(CLRTrainer, self).__init__(
-            model, train_loader, val_loader, test_loader, device
+        super().__init__(model, train_loader, val_loader, test_loader, device)
+        self.criterion = NTXentLoss(temperature=0.5)  # Lower temperature for sharper contrasts
+        self.optimizer = optim.AdamW(
+            model.parameters(), 
+            lr=3e-4,  # Better initial learning rate for contrastive learning
+            weight_decay=1e-6  # Lower weight decay
         )
-        self.criterion = NTXentLoss(temperature=0.3)
-        self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer,
-            T_max=100,  # Adjusted T_max to match your training schedule
-            eta_min=1e-6,  # Lower bound for the learning rate
-        )
-        self.augmentation = transforms.Compose(
-            [
-                transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
-                transforms.RandomHorizontalFlip(),
-                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1),
-                transforms.RandomGrayscale(p=0.2),
-                transforms.GaussianBlur(kernel_size=3),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-            ]
+            self.optimizer, T_max=100, eta_min=1e-6
         )
 
     def train(self):
@@ -357,42 +347,52 @@ class CLRTrainer(BaseTrainer):
         self.model.train() if mode == Mode.TRAIN else self.model.eval()
         total_loss = 0.0
         num_batches = len(loader)
+        device = self.device
+        
+        # Define augmentations for contrastive views
+        augmentation = transforms.Compose([
+            transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),  # More aggressive crop
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+        ])
 
-        with tqdm(
-            loader,
-            desc=(
-                "Training"
-                if mode == Mode.TRAIN
-                else (
-                    "Validating"
-                    if mode == Mode.VAL
-                    else "Testing" if mode == Mode.TEST else "Unknown Mode"
-                )
-            ),
-            leave=True,
-        ) as pbar:
+        with tqdm(loader, desc=("Training" if mode == Mode.TRAIN else 
+                               ("Validating" if mode == Mode.VAL else "Testing")),
+                  total=num_batches, leave=True, dynamic_ncols=True, ncols=100) as pbar:
             for inputs, _ in pbar:
-                inputs = inputs.to(self.device)
-
-                # Generate two augmented views of the same input
-                inputs1 = self.augmentation(inputs)
-                inputs2 = self.augmentation(inputs)
-
+                batch_size = inputs.size(0)
+                if batch_size <= 1:  # Skip very small batches - contrastive needs pairs
+                    continue
+                    
+                inputs = inputs.to(device)
+                
+                # Create two views of the same batch
+                if mode == Mode.TRAIN:
+                    # Apply augmentations when training
+                    inputs1 = augmentation(inputs)
+                    inputs2 = augmentation(inputs)
+                else:
+                    # During validation/testing, just use the same input twice
+                    inputs1, inputs2 = inputs, inputs
+                    
                 if mode == Mode.TRAIN:
                     self.optimizer.zero_grad()
 
-                # Forward pass
+                # Get embeddings
                 z_i = self.model(inputs1)
                 z_j = self.model(inputs2)
-
-                # Compute loss
+                
+                # Calculate contrastive loss
                 loss = self.criterion(z_i, z_j)
 
                 if mode == Mode.TRAIN:
                     loss.backward()
+                    # Add gradient clipping for stability
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     self.optimizer.step()
 
                 total_loss += loss.item()
-                pbar.set_postfix(loss=loss.item())
+                pbar.set_postfix(loss=f"{loss.item():.4f}")
 
         return total_loss / num_batches, 0.0  # Return dummy accuracy
