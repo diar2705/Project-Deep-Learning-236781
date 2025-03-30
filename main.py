@@ -72,7 +72,6 @@ if __name__ == "__main__":
         test_dataset = datasets.MNIST(
             root=args.data_path, train=False, download=False, transform=transform
         )
-        # For MNIST you can use the same transform for both training and validation.
         full_train_dataset = train_dataset
     else:
         # Define separate transforms for training and testing/validation
@@ -82,20 +81,20 @@ if __name__ == "__main__":
                     transforms.RandomHorizontalFlip(),
                     transforms.RandomRotation(10),
                     transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+                    #transforms.Normalize(mean=[0.49139968, 0.48215827 ,0.44653124], std=[0.24703233, 0.24348505 ,0.26158768]),
                 ]
             )
         else:
             transform_train = transforms.Compose(
                 [
                     transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+                    #transforms.Normalize(mean=[0.49139968, 0.48215827 ,0.44653124], std=[0.24703233, 0.24348505 ,0.26158768]),
                 ]
             )
         transform_test = transforms.Compose(
             [
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+                    #transforms.Normalize(mean=[0.49139968, 0.48215827 ,0.44653124], std=[0.24703233, 0.24348505 ,0.26158768]),
             ]
         )
 

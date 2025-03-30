@@ -39,72 +39,60 @@ class ResidualBlock(nn.Module):
 class Encoder(nn.Module):
     def __init__(self, latent_dim=128, input_channels=3):
         super(Encoder, self).__init__()
-        c_hid = 32
+        c_hid = 64
         self.encoder = nn.Sequential(
             nn.Conv2d(input_channels, c_hid, kernel_size=3, padding=1, stride=2),
             nn.BatchNorm2d(c_hid),
-            nn.GELU(),
+            nn.SiLU(),
+            
+            
             ResidualBlock(c_hid, c_hid),
             nn.Conv2d(c_hid, 2 * c_hid, kernel_size=3, padding=1, stride=2),
             nn.BatchNorm2d(2 * c_hid),
-            nn.GELU(),
+            nn.SiLU(),
+            
+            
             ResidualBlock(2 * c_hid, 2 * c_hid),
-            nn.Conv2d(2 * c_hid, 2 * c_hid, kernel_size=3, padding=1, stride=2),
-            nn.BatchNorm2d(2 * c_hid),
-            nn.GELU(),
-            ResidualBlock(2 * c_hid, 2 * c_hid),
+            nn.Conv2d(2 * c_hid, 4 * c_hid, kernel_size=3, padding=1, stride=2),
+            nn.BatchNorm2d(4 * c_hid),
+            nn.SiLU(),
+            
+            
+            ResidualBlock(4 * c_hid, 4 * c_hid),
             nn.Flatten(),
-            nn.Dropout(0.2),
-            nn.Linear(2 * 16 * c_hid, latent_dim),
+            nn.Dropout(0.3),
+            nn.Linear(4 * 4 * 4 * c_hid, latent_dim),
         )
-        # Optionally initialize linear layer here if desired
         self.encoder.apply(lambda m: nn.init.xavier_uniform_(m.weight) if isinstance(m, nn.Linear) else None)
 
     def forward(self, x):
         return self.encoder(x)
 
-
 class Decoder(nn.Module):
     def __init__(self, latent_dim=128, output_channels=3):
         super(Decoder, self).__init__()
-        c_hid = 32
+        c_hid = 64  
         self.decoder = nn.Sequential(
-            nn.Linear(latent_dim, 2 * 16 * c_hid),
-            nn.Dropout(0.2),
-            nn.GELU(),
-            nn.Unflatten(1, (2 * c_hid, 4, 4)),
-            ResidualBlock(2 * c_hid, 2 * c_hid),
-            nn.ConvTranspose2d(
-                2 * c_hid,
-                2 * c_hid,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-                output_padding=1,
-            ),
+            nn.Linear(latent_dim, 4 * 4 * 4 * c_hid),
+            nn.SiLU(),
+            nn.Dropout(0.3),
+            nn.Unflatten(1, (4 * c_hid, 4, 4)),
+            
+            ResidualBlock(4 * c_hid, 4 * c_hid),
+            nn.ConvTranspose2d(4 * c_hid, 2 * c_hid, kernel_size=3, padding=1, stride=2, output_padding=1),
             nn.BatchNorm2d(2 * c_hid),
-            nn.GELU(),
+            nn.SiLU(),
+            
             ResidualBlock(2 * c_hid, 2 * c_hid),
-            nn.ConvTranspose2d(
-                2 * c_hid,
-                2 * c_hid,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-                output_padding=1,
-            ),
-            nn.BatchNorm2d(2 * c_hid),
-            nn.GELU(),
-            ResidualBlock(2 * c_hid, 2 * c_hid),
-            nn.ConvTranspose2d(
-                2 * c_hid, c_hid, kernel_size=3, stride=2, padding=1, output_padding=1
-            ),
+            nn.ConvTranspose2d(2 * c_hid, c_hid, kernel_size=3, padding=1, stride=2, output_padding=1),
             nn.BatchNorm2d(c_hid),
-            nn.GELU(),
+            nn.SiLU(),
+            
             ResidualBlock(c_hid, c_hid),
-            nn.Conv2d(c_hid, output_channels, kernel_size=3, padding=1),
+            nn.ConvTranspose2d(c_hid, output_channels, kernel_size=3, padding=1, stride=2, output_padding=1),
             nn.Tanh(),
         )
+        self.decoder.apply(lambda m: nn.init.xavier_uniform_(m.weight) if isinstance(m, nn.Linear) else None)
         self.decoder.apply(init_conv)
 
     def forward(self, x):
@@ -116,26 +104,26 @@ class Classifier(nn.Module):
         super(Classifier, self).__init__()
         self.classifier = nn.Sequential(
             nn.Linear(latent_dim, 2048),
+            nn.SiLU(),
             nn.BatchNorm1d(2048),
-            nn.SiLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.3),
+
             nn.Linear(2048, 1024),
+            nn.SiLU(),
             nn.BatchNorm1d(1024),
-            nn.SiLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.3),
             nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
             nn.SiLU(),
-            nn.Dropout(0.2),
+            nn.BatchNorm1d(512),
+            nn.Dropout(0.3),
             nn.Linear(512, num_classes),
         )
         self._initialize_weights()
 
     def _initialize_weights(self):
-        # Initialize Linear layers using Xavier initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight)
+                nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
             elif isinstance(m, nn.BatchNorm1d):
