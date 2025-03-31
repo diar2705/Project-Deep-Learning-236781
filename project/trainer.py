@@ -119,12 +119,14 @@ class BaseTrainer:
 class AutoencoderTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
-        self.criterion = torch.nn.MSELoss()
+        self.criterion = torch.nn.L1Loss()
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
-            T_max=25,  # Adjusted T_max to match your training schedule
-            eta_min=1e-6,  # Lower bound for the learning rate
+            mode='min',  # Reduce LR when the validation loss stops decreasing
+            factor=0.5,  # Multiply LR by this factor when plateau is detected
+            patience=5,  # Number of epochs with no improvement after which LR will be reduced
+            min_lr=1e-6,  # Lower bound for the learning rate
         )
 
     def _run_epoch(self, loader, mode: Mode):
@@ -157,12 +159,13 @@ class AutoencoderTrainer(BaseTrainer):
         return total_loss / len(loader), 0.0  # Return dummy accuracy
 
     def train(self):
-        loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)
-        self.scheduler.step()
-        return loss, accuracy
+        return self._run_epoch(self.train_loader, Mode.TRAIN)
+        
 
     def validate(self):
-        return self._run_epoch(self.val_loader, Mode.VAL)
+        val_loss, _ = self._run_epoch(self.val_loader, Mode.VAL)
+        self.scheduler.step(val_loss)
+        return val_loss, 0.0
 
     def test(self):
         test_loss, _ = self._run_epoch(self.test_loader, Mode.TEST)
@@ -229,20 +232,26 @@ class ClassifierTrainer(BaseTrainer):
             weight_decay=1e-4,  # Increased weight decay for better regularization
         )
 
-        # Improved scheduler with adjusted T_max and eta_min
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        # Changed to ReduceLROnPlateau scheduler
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
-            T_max=50,  # Adjusted T_max to match your training schedule
-            eta_min=1e-6,  # Lower bound for the learning rate
+            mode='max',  # Reduce LR when the validation loss stops decreasing
+            factor=0.5,  # Multiply LR by this factor when plateau is detected
+            patience=5,  # Number of epochs with no improvement after which LR will be reduced
+            min_lr=1e-6,  # Lower bound for the learning rate
         )
 
     def train(self):
         loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)
-        self.scheduler.step()
+        # Note: with ReduceLROnPlateau, step should ideally be called after validation
+        # with the validation loss as parameter
         return loss, accuracy
 
     def validate(self):
-        return self._run_epoch(self.val_loader, Mode.VAL)
+        val_loss, val_accuracy = self._run_epoch(self.val_loader, Mode.VAL)
+        # Update scheduler based on validation loss
+        self.scheduler.step(val_loss)
+        return val_loss, val_accuracy
 
     def test(self):
         test_loss, accuracy = self._run_epoch(self.test_loader, Mode.TEST)
@@ -256,7 +265,7 @@ class EnclassifierTrainer(BaseTrainer):
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer,
-            T_max=30,  # Adjusted T_max to match your training schedule
+            T_max=20,  # Adjusted T_max to match your training schedule
             eta_min=1e-6,  # Lower bound for the learning rate
         )
 
