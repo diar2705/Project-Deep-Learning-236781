@@ -13,7 +13,7 @@ class Part(Enum):
 
 
 class Autoencoder(nn.Module):
-    def __init__(self, encoder, decoder, latent_dim=128):
+    def __init__(self, encoder, decoder):
         super(Autoencoder, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
@@ -31,7 +31,7 @@ class Autoencoder(nn.Module):
 
 
 class Enclassifier(nn.Module):
-    def __init__(self, encoder, classifier, latent_dim=128):
+    def __init__(self, encoder, classifier):
         super(Enclassifier, self).__init__()
         self.encoder = encoder
         self.classifier = classifier
@@ -50,7 +50,6 @@ def Part1(
     test_loader,
     device,
     is_mnist,
-    latent_dim=128,
 ):
     trainer = tr.AutoencoderTrainer(
         model, train_loader, val_loader, test_loader, device
@@ -79,10 +78,10 @@ def Part3(
     val_loader,
     test_loader,
     device,
-    latent_dim=128,
+    is_mnist,
 ):
     encoder = encoder.to(device)
-    trainer = tr.CLRTrainer(encoder, train_loader, val_loader, test_loader, device)
+    trainer = tr.CLRTrainer(encoder, train_loader, val_loader, test_loader, is_mnist, device)
     trainer.fit(30)
     torch.save(encoder.state_dict(), "encoder3.pth")
     encoder.load_state_dict(torch.load("encoder3.pth"))
@@ -107,7 +106,7 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, par
     final_encoder = None
 
     if part == 1:
-        model = Autoencoder(encoder, decoder, latent_dim).to(device)
+        model = Autoencoder(encoder, decoder).to(device)
         Part1(
             model,
             encoder,
@@ -117,11 +116,10 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, par
             test_loader,
             device,
             is_mnist,
-            latent_dim,
         )
         final_encoder = encoder
     elif part == 2:
-        model = Enclassifier(encoder, classifier, latent_dim).to(device)
+        model = Enclassifier(encoder, classifier).to(device)
         trainer = tr.EnclassifierTrainer(
             model, train_loader, val_loader, test_loader, device
         )
@@ -135,7 +133,7 @@ def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, par
             val_loader,
             test_loader,
             device,
-            latent_dim,
+            is_mnist,
         )
         final_encoder = encoder
     plot_tsne(final_encoder, test_loader, device)

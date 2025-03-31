@@ -191,34 +191,27 @@ class AutoencoderTrainer(BaseTrainer):
         # Create directory for saving images
         os.makedirs("reconstructed_images", exist_ok=True)
 
-        # Visualize and save the top `num_images_to_show` images
+        # Save the top `num_images_to_show` images
         for i in range(min(num_images_to_show, len(images_losses))):
-            original, reconstructed, _ = images_losses[
-                i
-            ]  # Get original and reconstructed images
-            fig, axes = plt.subplots(1, 2)  # Create a figure with two subplots
+            original, reconstructed, _ = images_losses[i]
 
             # Clip pixel values to [0, 1]
             original = original.clamp(0, 1)
             reconstructed = reconstructed.clamp(0, 1)
 
-            if original.shape[1] == 3:  # Color image (CIFAR-10)
-                axes[0].imshow(
-                    original[0].permute(1, 2, 0).numpy()
-                )  # Display original image
-                axes[1].imshow(
-                    reconstructed[0].permute(1, 2, 0).numpy()
-                )  # Display reconstructed image
-            else:  # Grayscale image
-                axes[0].imshow(original[0][0], cmap="gray")  # Display original image
-                axes[1].imshow(
-                    reconstructed[0][0], cmap="gray"
-                )  # Display reconstructed image
+            # Save original image
+            plt.imsave(
+                f"reconstructed_images/original_image_{i+1}.png",
+                original[0].permute(1, 2, 0).numpy() if original.shape[1] == 3 else original[0][0].numpy(),
+                cmap="gray" if original.shape[1] != 3 else None
+            )
 
-            axes[0].set_title("Original")
-            axes[1].set_title("Reconstructed")
-            plt.savefig(f"reconstructed_images/image_{i+1}.png")  # Save the figure
-            plt.close(fig)  # Close the figure to free memory
+            # Save reconstructed image
+            plt.imsave(
+                f"reconstructed_images/reconstructed_image_{i+1}.png",
+                reconstructed[0].permute(1, 2, 0).numpy() if reconstructed.shape[1] == 3 else reconstructed[0][0].numpy(),
+                cmap="gray" if reconstructed.shape[1] != 3 else None
+            )
 
 
 class ClassifierTrainer(BaseTrainer):
@@ -263,19 +256,23 @@ class EnclassifierTrainer(BaseTrainer):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        # Changed to ReduceLROnPlateau scheduler
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
-            T_max=20,  # Adjusted T_max to match your training schedule
-            eta_min=1e-6,  # Lower bound for the learning rate
+            mode='max',  # Reduce LR when the validation loss stops decreasing
+            factor=0.5,  # Multiply LR by this factor when plateau is detected
+            patience=5,  # Number of epochs with no improvement after which LR will be reduced
+            min_lr=1e-6,  # Lower bound for the learning rate
         )
 
     def train(self):
-        loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)
-        self.scheduler.step()
-        return loss, accuracy
+        return self._run_epoch(self.train_loader, Mode.TRAIN)
 
     def validate(self):
-        return self._run_epoch(self.val_loader, Mode.VAL)
+        val_loss, val_accuracy = self._run_epoch(self.val_loader, Mode.VAL)
+        # Update scheduler based on validation loss
+        self.scheduler.step(val_loss)
+        return val_loss, val_accuracy
 
     def test(self):
         test_loss, accuracy = self._run_epoch(self.test_loader, Mode.TEST)
@@ -283,67 +280,44 @@ class EnclassifierTrainer(BaseTrainer):
 
 
 class NTXentLoss(nn.modules.loss._Loss):
+    # NT-Xent loss for contrastive learning
     def __init__(self, temperature=0.5, reduction='mean'):
         super().__init__(reduction=reduction)
         self.temperature = temperature
         self.eps = 1e-8
 
     def forward(self, z_i, z_j):
-        """
-        Calculate NT-Xent loss as described in SimCLR paper
-        Args:
-            z_i, z_j: Batch of embeddings from two augmented versions of input
-        """
         batch_size = z_i.size(0)
         device = z_i.device
-        
-        # Normalize the embeddings along the feature dimension
         z_i = F.normalize(z_i, dim=1)
         z_j = F.normalize(z_j, dim=1)
-        
-        # Concatenate to get all embeddings
         z = torch.cat([z_i, z_j], dim=0)
-        
-        # Calculate similarity matrix
         similarity_matrix = torch.matmul(z, z.T) / self.temperature
-        
-        # Remove diagonal elements (self-similarity)
         sim_i_j = torch.diag(similarity_matrix, batch_size)
         sim_j_i = torch.diag(similarity_matrix, -batch_size)
-        
-        # Create positive pairs
         positive_samples = torch.cat([sim_i_j, sim_j_i], dim=0)
-        
-        # Create mask to exclude self-similarity
         mask = ~torch.eye(2 * batch_size, dtype=bool, device=device)
         negative_samples = similarity_matrix[mask].view(2 * batch_size, -1)
-        
-        # Combine positive and negative samples for the denominator calculation
         logits = torch.cat([positive_samples.view(-1, 1), negative_samples], dim=1)
-        
-        # Use softmax cross-entropy loss
         labels = torch.zeros(2 * batch_size, dtype=torch.long, device=device)
         loss = F.cross_entropy(logits, labels)
-        
         return loss
 
-
 class CLRTrainer(BaseTrainer):
-    def __init__(self, model, train_loader, val_loader, test_loader, device):
+    def __init__(self, model, train_loader, val_loader, test_loader, is_mnist, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
-        self.criterion = NTXentLoss(temperature=0.5)  # Lower temperature for sharper contrasts
-        self.optimizer = optim.AdamW(
-            model.parameters(), 
-            lr=3e-4,  # Better initial learning rate for contrastive learning
-            weight_decay=1e-6  # Lower weight decay
-        )
+        self.criterion = NTXentLoss(temperature=0.5)
+        
+        self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-3)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=100, eta_min=1e-6
+            self.optimizer,
+            T_max=10,
+            eta_min=1e-6,
         )
-
+        self.is_mnist = is_mnist
+        
     def train(self):
         loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)
-        self.scheduler.step()
         return loss, accuracy
 
     def validate(self):
@@ -357,51 +331,41 @@ class CLRTrainer(BaseTrainer):
         total_loss = 0.0
         num_batches = len(loader)
         device = self.device
+        if self.is_mnist:
+            augmentation = transforms.Compose([
+                transforms.RandomRotation(15),  # Rotate images randomly
+                transforms.RandomAffine(degrees=0, translate=(0.2, 0.2)),  # Random translation
+                transforms.RandomApply([transforms.GaussianBlur(3)], p=0.5),  # Add blur
+            ])
+        else:
+            augmentation = transforms.Compose([
+                transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),  # More aggressive crop
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
+                transforms.RandomGrayscale(p=0.2),
+            ])
         
-        # Define augmentations for contrastive views
-        augmentation = transforms.Compose([
-            transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),  # More aggressive crop
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-            transforms.RandomGrayscale(p=0.2),
-        ])
-
-        with tqdm(loader, desc=("Training" if mode == Mode.TRAIN else 
-                               ("Validating" if mode == Mode.VAL else "Testing")),
-                  total=num_batches, leave=True, dynamic_ncols=True, ncols=100) as pbar:
+        with tqdm(loader, desc=("Training" if mode == Mode.TRAIN else ("Validating" if mode == Mode.VAL else "Testing")), total=num_batches, leave=True, dynamic_ncols=True, ncols=100) as pbar:
             for inputs, _ in pbar:
                 batch_size = inputs.size(0)
-                if batch_size <= 1:  # Skip very small batches - contrastive needs pairs
+                if batch_size < 2:
                     continue
-                    
                 inputs = inputs.to(device)
-                
-                # Create two views of the same batch
                 if mode == Mode.TRAIN:
-                    # Apply augmentations when training
                     inputs1 = augmentation(inputs)
                     inputs2 = augmentation(inputs)
                 else:
-                    # During validation/testing, just use the same input twice
                     inputs1, inputs2 = inputs, inputs
-                    
                 if mode == Mode.TRAIN:
                     self.optimizer.zero_grad()
-
-                # Get embeddings
                 z_i = self.model(inputs1)
                 z_j = self.model(inputs2)
-                
-                # Calculate contrastive loss
                 loss = self.criterion(z_i, z_j)
-
                 if mode == Mode.TRAIN:
                     loss.backward()
-                    # Add gradient clipping for stability
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     self.optimizer.step()
-
+                    self.scheduler.step()
                 total_loss += loss.item()
                 pbar.set_postfix(loss=f"{loss.item():.4f}")
-
-        return total_loss / num_batches, 0.0  # Return dummy accuracy
+        return total_loss / num_batches, 0.0
