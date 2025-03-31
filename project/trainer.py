@@ -173,45 +173,32 @@ class AutoencoderTrainer(BaseTrainer):
         return test_loss, 0.0  # Return dummy accuracy
 
     def _save_reconstructed_images(self, test_loader, num_images_to_show=5):
-        self.model.eval()  # Set model to evaluation mode
-        images_losses = []  # Store (original, reconstructed, loss) tuples
-
+        # Save reconstructed images for visualization
+        self.model.eval()
+        images_losses = []
         with torch.no_grad():
             for inputs, _ in test_loader:
-                inputs = inputs.to(self.device)  # Move inputs to the device (GPU/CPU)
-                outputs = self.model(inputs)  # Get reconstructed images
-                loss = self.criterion(outputs, inputs).item()  # Compute loss
-                images_losses.append(
-                    (inputs.cpu(), outputs.cpu(), loss)
-                )  # Store results on CPU
-
-        # Sort images by loss (lowest loss first)
+                inputs = inputs.to(self.device)
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, inputs).item()
+                images_losses.append((inputs.cpu(), outputs.cpu(), loss))
         images_losses.sort(key=lambda x: x[2])
-
-        # Create directory for saving images
         os.makedirs("reconstructed_images", exist_ok=True)
-
-        # Save the top `num_images_to_show` images
         for i in range(min(num_images_to_show, len(images_losses))):
             original, reconstructed, _ = images_losses[i]
-
-            # Clip pixel values to [0, 1]
+            fig, axes = plt.subplots(1, 2)
             original = original.clamp(0, 1)
             reconstructed = reconstructed.clamp(0, 1)
-
-            # Save original image
-            plt.imsave(
-                f"reconstructed_images/original_image_{i+1}.png",
-                original[0].permute(1, 2, 0).numpy() if original.shape[1] == 3 else original[0][0].numpy(),
-                cmap="gray" if original.shape[1] != 3 else None
-            )
-
-            # Save reconstructed image
-            plt.imsave(
-                f"reconstructed_images/reconstructed_image_{i+1}.png",
-                reconstructed[0].permute(1, 2, 0).numpy() if reconstructed.shape[1] == 3 else reconstructed[0][0].numpy(),
-                cmap="gray" if reconstructed.shape[1] != 3 else None
-            )
+            if original.shape[1] == 3:
+                axes[0].imshow(original[0].permute(1, 2, 0).numpy())
+                axes[1].imshow(reconstructed[0].permute(1, 2, 0).numpy())
+            else:
+                axes[0].imshow(original[0][0], cmap="gray")
+                axes[1].imshow(reconstructed[0][0], cmap="gray")
+            axes[0].set_title("Original")
+            axes[1].set_title("Reconstructed")
+            plt.savefig(f"reconstructed_images/image_{i+1}.png")
+            plt.close(fig)
 
 
 class ClassifierTrainer(BaseTrainer):
