@@ -82,14 +82,20 @@ def Part3(
 ):
     encoder = encoder.to(device)
     trainer = tr.CLRTrainer(encoder, train_loader, val_loader, test_loader, is_mnist, device)
-    trainer.fit(30)
+    if is_mnist:
+        trainer.fit(30)
+    else:
+        trainer.fit(100)
     torch.save(encoder.state_dict(), "encoder3.pth")
     encoder.load_state_dict(torch.load("encoder3.pth"))
     for param in encoder.parameters():
         param.requires_grad = False
     model = nn.Sequential(encoder, classifier).to(device)
     trainer = tr.ClassifierTrainer(model, train_loader, val_loader, test_loader, device)
-    trainer.fit(25)
+    if is_mnist:
+        trainer.fit(25)
+    else:
+        trainer.fit(30)
     torch.save(model.state_dict(), "classifier_model3.pth")
 
 

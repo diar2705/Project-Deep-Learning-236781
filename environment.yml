@@ -49,3 +49,5 @@ dependencies:
       - typing-extensions==4.12.2
       - zipp==3.21.0
       - scikit-learn
+      - tqdm
+      - argparse

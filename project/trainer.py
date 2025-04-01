@@ -271,8 +271,7 @@ class NTXentLoss(nn.modules.loss._Loss):
     def __init__(self, temperature=0.5, reduction='mean'):
         super().__init__(reduction=reduction)
         self.temperature = temperature
-        self.eps = 1e-8
-
+    
     def forward(self, z_i, z_j):
         batch_size = z_i.size(0)
         device = z_i.device
@@ -293,18 +292,19 @@ class NTXentLoss(nn.modules.loss._Loss):
 class CLRTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, is_mnist, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
-        self.criterion = NTXentLoss(temperature=0.5)
+        self.criterion = NTXentLoss(temperature=0.1)
         
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-3)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer,
-            T_max=10,
+            T_max=30,
             eta_min=1e-6,
         )
         self.is_mnist = is_mnist
         
     def train(self):
         loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)
+        self.scheduler.step()
         return loss, accuracy
 
     def validate(self):
@@ -350,9 +350,7 @@ class CLRTrainer(BaseTrainer):
                 loss = self.criterion(z_i, z_j)
                 if mode == Mode.TRAIN:
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     self.optimizer.step()
-                    self.scheduler.step()
                 total_loss += loss.item()
                 pbar.set_postfix(loss=f"{loss.item():.4f}")
         return total_loss / num_batches, 0.0
