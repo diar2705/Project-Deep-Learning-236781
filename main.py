@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader, Subset
 import numpy as np
 import random
 import argparse
-from project.models import aux
+from project.models import run_model
 
 
 NUM_CLASSES = 10
@@ -81,24 +81,20 @@ if __name__ == "__main__":
                     transforms.RandomHorizontalFlip(),
                     transforms.RandomRotation(10),
                     transforms.ToTensor(),
-                    #transforms.Normalize(mean=[0.49139968, 0.48215827 ,0.44653124], std=[0.24703233, 0.24348505 ,0.26158768]),
                 ]
             )
         else:
             transform_train = transforms.Compose(
                 [
                     transforms.ToTensor(),
-                    #transforms.Normalize(mean=[0.49139968, 0.48215827 ,0.44653124], std=[0.24703233, 0.24348505 ,0.26158768]),
                 ]
             )
         transform_test = transforms.Compose(
             [
                 transforms.ToTensor(),
-                    #transforms.Normalize(mean=[0.49139968, 0.48215827 ,0.44653124], std=[0.24703233, 0.24348505 ,0.26158768]),
             ]
         )
 
-        # Create two separate dataset instances: one for training (with augmentations) and one for validation (without augmentations)
         full_train_dataset = datasets.CIFAR10(
             root=args.data_path, train=True, download=True, transform=transform_train
         )
@@ -129,7 +125,7 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_subset, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    aux(
+    run_model(
         train_loader,
         val_loader,
         test_loader,

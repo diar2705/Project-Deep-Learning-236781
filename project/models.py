@@ -99,7 +99,7 @@ def Part3(
     torch.save(model.state_dict(), "classifier_model3.pth")
 
 
-def aux(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, part):
+def run_model(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, part):
     if is_mnist:
         encoder = mn.Encoder(latent_dim)
         decoder = mn.Decoder(latent_dim)

@@ -123,10 +123,10 @@ class AutoencoderTrainer(BaseTrainer):
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
-            mode='min',  # Reduce LR when the validation loss stops decreasing
-            factor=0.5,  # Multiply LR by this factor when plateau is detected
-            patience=5,  # Number of epochs with no improvement after which LR will be reduced
-            min_lr=1e-6,  # Lower bound for the learning rate
+            mode='min',
+            factor=0.5,
+            patience=5,
+            min_lr=1e-6,
         )
 
     def _run_epoch(self, loader, mode: Mode):
@@ -156,7 +156,7 @@ class AutoencoderTrainer(BaseTrainer):
                     self.optimizer.step()
                 total_loss += loss.item()
                 pbar.set_postfix(loss=loss.item())
-        return total_loss / len(loader), 0.0  # Return dummy accuracy
+        return total_loss / len(loader), 0.0
 
     def train(self):
         return self._run_epoch(self.train_loader, Mode.TRAIN)
@@ -170,10 +170,9 @@ class AutoencoderTrainer(BaseTrainer):
     def test(self):
         test_loss, _ = self._run_epoch(self.test_loader, Mode.TEST)
         self._save_reconstructed_images(self.test_loader)
-        return test_loss, 0.0  # Return dummy accuracy
+        return test_loss, 0.0
 
     def _save_reconstructed_images(self, test_loader, num_images_to_show=5):
-        # Save reconstructed images for visualization
         self.model.eval()
         images_losses = []
         with torch.no_grad():
@@ -205,31 +204,25 @@ class ClassifierTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.CrossEntropyLoss()
-        # Lower weight decay
         self.optimizer = optim.AdamW(
             model[1].parameters(),
-            lr=2e-3,  # Adjusted learning rate
-            weight_decay=1e-4,  # Increased weight decay for better regularization
+            lr=2e-3,
+            weight_decay=1e-4,
         )
-
-        # Changed to ReduceLROnPlateau scheduler
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
-            mode='max',  # Reduce LR when the validation loss stops decreasing
-            factor=0.5,  # Multiply LR by this factor when plateau is detected
-            patience=5,  # Number of epochs with no improvement after which LR will be reduced
-            min_lr=1e-6,  # Lower bound for the learning rate
+            mode='max',
+            factor=0.5,
+            patience=5,
+            min_lr=1e-6,
         )
 
     def train(self):
         loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)
-        # Note: with ReduceLROnPlateau, step should ideally be called after validation
-        # with the validation loss as parameter
         return loss, accuracy
 
     def validate(self):
         val_loss, val_accuracy = self._run_epoch(self.val_loader, Mode.VAL)
-        # Update scheduler based on validation loss
         self.scheduler.step(val_loss)
         return val_loss, val_accuracy
 
@@ -243,13 +236,12 @@ class EnclassifierTrainer(BaseTrainer):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
-        # Changed to ReduceLROnPlateau scheduler
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
-            mode='max',  # Reduce LR when the validation loss stops decreasing
-            factor=0.5,  # Multiply LR by this factor when plateau is detected
-            patience=5,  # Number of epochs with no improvement after which LR will be reduced
-            min_lr=1e-6,  # Lower bound for the learning rate
+            mode='max',
+            factor=0.5,
+            patience=5,
+            min_lr=1e-6,
         )
 
     def train(self):
@@ -257,7 +249,6 @@ class EnclassifierTrainer(BaseTrainer):
 
     def validate(self):
         val_loss, val_accuracy = self._run_epoch(self.val_loader, Mode.VAL)
-        # Update scheduler based on validation loss
         self.scheduler.step(val_loss)
         return val_loss, val_accuracy
 
@@ -267,7 +258,6 @@ class EnclassifierTrainer(BaseTrainer):
 
 
 class NTXentLoss(nn.modules.loss._Loss):
-    # NT-Xent loss for contrastive learning
     def __init__(self, temperature=0.5, reduction='mean'):
         super().__init__(reduction=reduction)
         self.temperature = temperature
@@ -293,7 +283,6 @@ class CLRTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, is_mnist, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
         self.criterion = NTXentLoss(temperature=0.1)
-        
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-3)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer,
@@ -320,13 +309,13 @@ class CLRTrainer(BaseTrainer):
         device = self.device
         if self.is_mnist:
             augmentation = transforms.Compose([
-                transforms.RandomRotation(15),  # Rotate images randomly
-                transforms.RandomAffine(degrees=0, translate=(0.2, 0.2)),  # Random translation
-                transforms.RandomApply([transforms.GaussianBlur(3)], p=0.5),  # Add blur
+                transforms.RandomRotation(15),
+                transforms.RandomAffine(degrees=0, translate=(0.2, 0.2)),
+                transforms.RandomApply([transforms.GaussianBlur(3)], p=0.5),
             ])
         else:
             augmentation = transforms.Compose([
-                transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),  # More aggressive crop
+                transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
                 transforms.RandomHorizontalFlip(p=0.5),
                 transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
                 transforms.RandomGrayscale(p=0.2),
