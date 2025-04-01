@@ -6,11 +6,15 @@ class Encoder(nn.Module):
     def __init__(self, latent_dim=128):
         super(Encoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(
+                in_channels=1, out_channels=32, kernel_size=5, stride=1, padding=2
+            ),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(
+                in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1
+            ),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
@@ -29,10 +33,14 @@ class Decoder(nn.Module):
             nn.Linear(latent_dim, 64 * 7 * 7),
             nn.ReLU(),
             nn.Unflatten(1, (64, 7, 7)),
-            nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(
+                64, 32, kernel_size=3, stride=2, padding=1, output_padding=1
+            ),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 1, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(
+                32, 1, kernel_size=3, stride=2, padding=1, output_padding=1
+            ),
             nn.Sigmoid(),
         )
 

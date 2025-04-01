@@ -81,7 +81,9 @@ def Part3(
     is_mnist,
 ):
     encoder = encoder.to(device)
-    trainer = tr.CLRTrainer(encoder, train_loader, val_loader, test_loader, is_mnist, device)
+    trainer = tr.CLRTrainer(
+        encoder, train_loader, val_loader, test_loader, is_mnist, device
+    )
     if is_mnist:
         trainer.fit(30)
     else:
@@ -99,17 +101,14 @@ def Part3(
     torch.save(model.state_dict(), "classifier_model3.pth")
 
 
-def run_model(train_loader, val_loader, test_loader, device, is_mnist, latent_dim, part):
-    if is_mnist:
-        encoder = mn.Encoder(latent_dim)
-        decoder = mn.Decoder(latent_dim)
-        classifier = mn.Classifier(num_classes=10)
-    else:
-        encoder = cf.Encoder(latent_dim)
-        decoder = cf.Decoder(latent_dim)
-        classifier = cf.Classifier(num_classes=10)
-
-    final_encoder = None
+def run_model(
+    train_loader, val_loader, test_loader, device, is_mnist, latent_dim, part
+):
+    encoder = mn.Encoder(latent_dim) if is_mnist else cf.Encoder(latent_dim)
+    decoder = mn.Decoder(latent_dim) if is_mnist else cf.Decoder(latent_dim)
+    classifier = (
+        mn.Classifier(num_classes=10) if is_mnist else cf.Classifier(num_classes=10)
+    )
 
     if part == 1:
         model = Autoencoder(encoder, decoder).to(device)
@@ -123,14 +122,13 @@ def run_model(train_loader, val_loader, test_loader, device, is_mnist, latent_di
             device,
             is_mnist,
         )
-        final_encoder = encoder
     elif part == 2:
         model = Enclassifier(encoder, classifier).to(device)
         trainer = tr.EnclassifierTrainer(
             model, train_loader, val_loader, test_loader, device
         )
         trainer.fit(20)
-        final_encoder = model.encoder
+        encoder = model.encoder
     elif part == 3:
         Part3(
             encoder,
@@ -141,5 +139,4 @@ def run_model(train_loader, val_loader, test_loader, device, is_mnist, latent_di
             device,
             is_mnist,
         )
-        final_encoder = encoder
-    plot_tsne(final_encoder, test_loader, device)
+    plot_tsne(encoder, test_loader, device)

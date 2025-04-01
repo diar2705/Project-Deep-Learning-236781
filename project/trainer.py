@@ -123,7 +123,7 @@ class AutoencoderTrainer(BaseTrainer):
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
-            mode='min',
+            mode="min",
             factor=0.5,
             patience=5,
             min_lr=1e-6,
@@ -160,7 +160,6 @@ class AutoencoderTrainer(BaseTrainer):
 
     def train(self):
         return self._run_epoch(self.train_loader, Mode.TRAIN)
-        
 
     def validate(self):
         val_loss, _ = self._run_epoch(self.val_loader, Mode.VAL)
@@ -211,7 +210,7 @@ class ClassifierTrainer(BaseTrainer):
         )
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
-            mode='max',
+            mode="max",
             factor=0.5,
             patience=5,
             min_lr=1e-6,
@@ -238,7 +237,7 @@ class EnclassifierTrainer(BaseTrainer):
         self.optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
-            mode='max',
+            mode="max",
             factor=0.5,
             patience=5,
             min_lr=1e-6,
@@ -258,10 +257,10 @@ class EnclassifierTrainer(BaseTrainer):
 
 
 class NTXentLoss(nn.modules.loss._Loss):
-    def __init__(self, temperature=0.5, reduction='mean'):
+    def __init__(self, temperature=0.5, reduction="mean"):
         super().__init__(reduction=reduction)
         self.temperature = temperature
-    
+
     def forward(self, z_i, z_j):
         batch_size = z_i.size(0)
         device = z_i.device
@@ -279,6 +278,7 @@ class NTXentLoss(nn.modules.loss._Loss):
         loss = F.cross_entropy(logits, labels)
         return loss
 
+
 class CLRTrainer(BaseTrainer):
     def __init__(self, model, train_loader, val_loader, test_loader, is_mnist, device):
         super().__init__(model, train_loader, val_loader, test_loader, device)
@@ -290,7 +290,7 @@ class CLRTrainer(BaseTrainer):
             eta_min=1e-6,
         )
         self.is_mnist = is_mnist
-        
+
     def train(self):
         loss, accuracy = self._run_epoch(self.train_loader, Mode.TRAIN)
         self.scheduler.step()
@@ -308,20 +308,37 @@ class CLRTrainer(BaseTrainer):
         num_batches = len(loader)
         device = self.device
         if self.is_mnist:
-            augmentation = transforms.Compose([
-                transforms.RandomRotation(15),
-                transforms.RandomAffine(degrees=0, translate=(0.2, 0.2)),
-                transforms.RandomApply([transforms.GaussianBlur(3)], p=0.5),
-            ])
+            augmentation = transforms.Compose(
+                [
+                    transforms.RandomRotation(15),
+                    transforms.RandomAffine(degrees=0, translate=(0.2, 0.2)),
+                    transforms.RandomApply([transforms.GaussianBlur(3)], p=0.5),
+                ]
+            )
         else:
-            augmentation = transforms.Compose([
-                transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-                transforms.RandomGrayscale(p=0.2),
-            ])
-        
-        with tqdm(loader, desc=("Training" if mode == Mode.TRAIN else ("Validating" if mode == Mode.VAL else "Testing")), total=num_batches, leave=True, dynamic_ncols=True, ncols=100) as pbar:
+            augmentation = transforms.Compose(
+                [
+                    transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
+                    transforms.RandomHorizontalFlip(p=0.5),
+                    transforms.RandomApply(
+                        [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
+                    ),
+                    transforms.RandomGrayscale(p=0.2),
+                ]
+            )
+
+        with tqdm(
+            loader,
+            desc=(
+                "Training"
+                if mode == Mode.TRAIN
+                else ("Validating" if mode == Mode.VAL else "Testing")
+            ),
+            total=num_batches,
+            leave=True,
+            dynamic_ncols=True,
+            ncols=100,
+        ) as pbar:
             for inputs, _ in pbar:
                 batch_size = inputs.size(0)
                 if batch_size < 2:
