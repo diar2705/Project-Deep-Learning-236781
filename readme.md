@@ -1,5 +1,7 @@
 # Deep Learning (CS-236781)
 
+[![Grade](https://img.shields.io/badge/Grade-95%2F100-brightgreen.svg)]()
+
 This repository contains a deep learning project for the [CS236781](https://vistalab-technion.github.io/cs236781/) Deep Learning course at the Technion.
 
 It is created by [Diar Batheesh](https://github.com/diar2705) and [Hadi Hboos](https://github.com/HadiHboos1).
@@ -16,7 +18,7 @@ It is created by [Diar Batheesh](https://github.com/diar2705) and [Hadi Hboos](h
    4.2. [Classification-Guided Encoding](#-part-2-122-classification-guided-encoding)  
    4.3. [Structured Latent Spaces](#-part-3-123-structured-latent-spaces)  
 5. [Usage](#️-usage)  
-6. [Visualization & Analysis](#-visualization--analysis)  
+6. [Latent t-SNE & Analysis](#-latent-t-sne--analysis)  
 7. [Results](#-results)  
 8. [Hyperparameters](#️-hyperparameters)  
 9. [License](#-license)  
@@ -27,6 +29,8 @@ It is created by [Diar Batheesh](https://github.com/diar2705) and [Hadi Hboos](h
 ## 🧠 Project Overview
 
 A comprehensive three-part study on representation learning using MNIST and CIFAR-10 datasets, implemented with PyTorch. This project delves into self-supervised autoencoding, classification-guided encoding, and structured latent spaces, showcasing advanced techniques in deep learning.
+
+**🎯 Final Grade: 95/100**
 
 ---
 
@@ -62,7 +66,7 @@ A comprehensive three-part study on representation learning using MNIST and CIFA
    conda env create -f environment.yml
    conda activate aes
    ```
-3.
+
 ---
 
 ## 🔧 Parts
@@ -84,6 +88,36 @@ Learn a compact latent representation via reconstruction.
 - Reconstructions → `reconstructed_images/`  
 - Loss/accuracy plots → `plots/.../part_1.2.1/`
 
+**Images:**
+
+**MNIST Test Results:**
+![Part 1 MNIST Results](plots/mnist/part%201.2.1/Acc%20loss%20classifier.png)
+
+**MNIST t-SNE Latent Space:**
+![Part 1 MNIST t-SNE](plots/mnist/part%201.2.1/latent_tsne.png)
+
+**MNIST Image Reconstructions:**
+<div style="display: flex; gap: 10px;">
+   <img src="plots/mnist/part%201.2.1/reconstructed_images/image_1.png" alt="MNIST AE" width="120">
+   <img src="plots/mnist/part%201.2.1/reconstructed_images/image_2.png" alt="MNIST AE" width="120">
+   <img src="plots/mnist/part%201.2.1/reconstructed_images/image_3.png" alt="MNIST AE" width="120">
+   <img src="plots/mnist/part%201.2.1/reconstructed_images/image_4.png" alt="MNIST AE" width="120">
+   <img src="plots/mnist/part%201.2.1/reconstructed_images/image_5.png" alt="MNIST AE" width="120">
+</div>
+
+**MNIST Interpolation Results:**
+![Interpolation](plots/mnist/part%201.2.1/interpolation.png)
+
+**CIFAR-10 Test Results:**
+![Part 1 CIFAR-10 Results](plots/cifar10/part%201.2.1/Acc%20loss%20classifier.png)
+
+**CIFAR-10 t-SNE Latent Space:**
+![Part 1 CIFAR-10 t-SNE](plots/cifar10/part%201.2.1/latent_tsne.png)
+
+**CIFAR-10 Image Reconstructions:**
+![MNIST AE](plots/cifar10/part%201.2.1/latent_tsne.png)
+
+
 ---
 
 ### 🔍 Part 2 (1.2.2) Classification-Guided Encoding
@@ -102,6 +136,20 @@ Jointly learn encoding and classification end-to-end.
 **Artifacts**  
 - Accuracy plots → `plots/.../part_1.2.2/`  
 - t-SNE visualizations of latent space
+
+**Images:**
+
+**MNIST Test Results:**
+![Part 2 MNIST Results](plots/mnist/part%201.2.2/Acc%20loss.png)
+
+**MNIST t-SNE Latent Space:**
+![Part 2 MNIST t-SNE](plots/mnist/part%201.2.2/latent_tsne.png)
+
+**CIFAR-10 Test Results:**
+![Part 2 CIFAR-10 Results](plots/cifar10/part%201.2.2/Acc%20loss%20classifier.png)
+
+**CIFAR-10 t-SNE Latent Space:**
+![Part 2 CIFAR-10 t-SNE](plots/cifar10/part%201.2.2/latent_tsne.png)
 
 ---
 
@@ -122,7 +170,21 @@ Structure latent space via contrastive learning (NT-Xent, SimCLR).
 - Contrastive training curves → `plots/.../part_1.2.3/`  
 - Structured t-SNE embeddings
 
----
+**Images:**
+
+**MNIST Test Results:**
+![Part 3 MNIST Results](plots/mnist/part%201.2.3/accuracy_loss_plot.png)
+
+**MNIST t-SNE Latent Space:**
+![Part 3 MNIST t-SNE](plots/mnist/part%201.2.3/latent_tsne.png)
+
+
+**CIFAR-10 Test Results:**
+![Part 3 CIFAR-10 Results](plots/cifar10/part%201.2.3/accuracy_loss_plot%20classifier.png)
+
+**CIFAR-10 t-SNE Latent Space:**
+![Part 3 CIFAR-10 t-SNE](plots/cifar10/part%201.2.3/latent_tsne.png)
+
 
 ## 🛠️ Usage
 
@@ -145,7 +207,7 @@ python main.py \
 
 ---
 
-## 📈 Visualization & Analysis
+## 📈 Latent t-SNE & Analysis
 
 - **t-SNE**: latent vs. image space via `utils.plot_tsne()`.  
 - **Reconstruction & Interpolation for MNIST**: run `interpolation.py` .  
@@ -163,7 +225,6 @@ python main.py \
 |           | CIFAR-10 | ~85%          |
 | Part 3    | MNIST    | ~97%          |
 |           | CIFAR-10 | ~72%          |
-
 
 ---
 
